@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>三視圖塗色系統</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    header {
+      background: linear-gradient(90deg, #2563eb, #4f46e5);
+      color: white;
+      padding: 16px 24px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.16);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px 32px;
+    }
+
+    /* Team 排列：3 × 2 */
+    .boards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .board {
+      background: white;
+      border-radius: 12px;
+      padding: 14px 16px 16px;
+      box-shadow: 0 4px 10px rgba(15,23,42,0.08);
+    }
+
+    /* 標題＋每組 Clean */
+    .board-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .board-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    /* 每組自己的 Clean 按鈕 → 橘色 */
+    .btn-reset {
+      padding: 5px 14px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      background: #f97316;   /* 橘色 */
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.15s ease, transform 0.05s ease;
+    }
+
+    .btn-reset:hover {
+      background: #ea580c;   /* hover 深橘 */
+    }
+
+    .btn-reset:active {
+      background: #c2410c;   /* 按下更深橘 */
+      transform: scale(0.97);
+    }
+
+    /* 三視圖區 */
+    .views {
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .view-title {
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 40px);
+      grid-template-rows: repeat(4, 40px);
+      gap: 4px;
+    }
+
+    .cell {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: #e5e7eb;
+      border: 1px solid #d1d5db;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    /* 顏色設定 */
+    .cell.active { /* 俯視圖綠 */
+      background: #34d399;
+      border-color: #059669;
+    }
+
+    .view-front .cell.active { /* 前視圖：水藍 */
+      background: #7dd3fc;
+      border-color: #0284c7;
+    }
+
+    .view-right .cell.active { /* 右視圖：紅色 */
+      background: #fca5a5;
+      border-color: #ef4444;
+    }
+
+    /* 最下面 All Clean */
+    .actions {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .btn-all-reset {
+      padding: 10px 26px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 999px;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(239,68,68,0.4);
+      transition: background-color 0.15s ease, transform 0.05s ease;
+    }
+
+    .btn-all-reset:hover {
+      background: #dc2626;
+    }
+
+    .btn-all-reset:active {
+      background: #b91c1c;
+      transform: scale(0.97);
+    }
+
+    @media (max-width: 960px) {
+      .boards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>三視圖方格塗色系統</h1>
+    <p>國中七年級生活科技課程</p>
+  </header>
+
+  <main class="page">
+    <div class="boards">
+
+      <!-- 用 script 動態產生 Team 1–6 -->
+      <script>
+        const teamCount = 6;
+        const views = [
+          { name: "前視圖", class: "view-front" },
+          { name: "右視圖", class: "view-right" },
+          { name: "俯視圖（上視圖）", class: "view-top" }
+        ];
+
+        for (let t = 1; t <= teamCount; t++) {
+          document.write(`
+            <section class="board">
+              <div class="board-header">
+                <div class="board-title">Team ${t}</div>
+                <button class="btn-reset">Clean</button>
+              </div>
+              <div class="views">
+          `);
+
+          views.forEach(v => {
+            document.write(`
+              <div class="view ${v.class}">
+                <div class="view-title">${v.name}</div>
+                <div class="grid"></div>
+              </div>
+            `);
+          });
+
+          document.write(`
+              </div>
+            </section>
+          `);
+        }
+      </script>
+
+    </div>
+
+    <!-- 全域清除 -->
+    <div class="actions">
+      <button id="allResetBtn" class="btn-all-reset">All Clean</button>
+    </div>
+  </main>
+
+  <script>
+    let isPainting = false;
+
+    // 產生每個 4×4 方格的 cell
+    document.querySelectorAll(".grid").forEach(grid => {
+      for (let i = 0; i < 16; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        grid.appendChild(cell);
+      }
+    });
+
+    // 滑鼠按住判定
+    document.addEventListener("mousedown", e => {
+      if (e.button === 0) isPainting = true;
+    });
+    document.addEventListener("mouseup", () => {
+      isPainting = false;
+    });
+
+    // cell 行為：拖曳塗色 + 點擊切換
+    function bindCellEvents() {
+      document.querySelectorAll(".cell").forEach(cell => {
+        cell.addEventListener("mouseover", () => {
+          if (isPainting) cell.classList.add("active");
+        });
+        cell.addEventListener("click", () => {
+          cell.classList.toggle("active");
+        });
+      });
+    }
+    bindCellEvents();
+
+    // 每組 Clean（只清本組）
+    document.querySelectorAll(".board").forEach(board => {
+      const btn = board.querySelector(".btn-reset");
+      btn.addEventListener("click", () => {
+        board.querySelectorAll(".cell").forEach(cell => {
+          cell.classList.remove("active");
+        });
+      });
+    });
+
+    // 全部 All Clean（六組一起清除）
+    document.getElementById("allResetBtn").addEventListener("click", () => {
+      document.querySelectorAll(".cell").forEach(cell => {
+        cell.classList.remove("active");
+      });
+    });
+  </script>
+
+</body>
+</html>
