@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Class Seating Chart System</title>
+    <title>Class Seating Chart System (Touch Optimized)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
@@ -12,12 +12,14 @@
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
 
     <script>
-        // 初始化手機拖拉功能
+        // --- iPad/手機拖曳與點選優化設定 ---
         MobileDragDrop.polyfill({
-            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride,
+            // 重要：按住 300ms 後才判定為拖曳，保留時間給「點選」和「雙擊」
+            holdToDrag: 300 
         });
         
-        // 解決 iOS 拖拉時的捲動衝突
+        // 解決 iOS 拖拉時與畫面捲動的衝突
         window.addEventListener('touchmove', function() {}, {passive: false});
     </script>
     
@@ -31,13 +33,13 @@
             --import-excel-btn: #2980b9;
             --main-width: 1100px;
         }
-        /* RWD 調整：在小螢幕上縮小尺寸 */
+        /* RWD 調整 */
         @media (max-width: 1150px) {
             :root { --main-width: 100%; }
             body { padding: 10px; }
             .control-panel { padding: 15px; }
             .stage-container { transform: scale(0.8); margin-bottom: 20px; }
-            .classroom-grid { transform: scale(0.8); transform-origin: top center; margin-bottom: -150px; } /* 縮放後修正底部留白 */
+            .classroom-grid { transform: scale(0.8); transform-origin: top center; margin-bottom: -150px; } 
         }
 
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; touch-action: manipulation; }
@@ -53,7 +55,6 @@
         .panel-left-col { flex: 0 0 350px; display: flex; flex-direction: column; gap: 15px; }
         .panel-right-col { flex: 1; display: flex; flex-direction: column; gap: 15px; min-width: 300px; }
 
-        /* 手機版面調整 */
         @media (max-width: 768px) {
             .panel-top-row { flex-direction: column; gap: 15px; }
             .panel-left-col { flex: 1; width: 100%; }
@@ -68,7 +69,7 @@
             display: flex; align-items: center; gap: 8px; background: #f9f9f9; padding: 12px; 
             border-radius: 8px; border: 1px solid #eee; 
             flex-wrap: nowrap; overflow-x: auto;
-            -webkit-overflow-scrolling: touch; /* iOS 捲動優化 */
+            -webkit-overflow-scrolling: touch; 
         }
         .color-selector { display: flex; gap: 5px; flex-wrap: nowrap; align-items: center; }
         .color-btns-right { margin-left: auto; display: flex; gap: 5px; flex-shrink: 0; }
@@ -98,28 +99,24 @@
         .import-btn-group { display: flex; gap: 10px; margin-top: 5px; }
         .btn-import-excel { background: var(--import-excel-btn); color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; width: 100%; }
 
-        /* 上方區域：調整為 Flex Space-Between 讓按鈕靠右 */
         .gender-setting-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; width: 100%; }
         
-        /* 上方區域：匯出按鈕樣式 */
         .btn-export-top { 
             background: var(--success); color: white; border: none; 
             padding: 5px 15px; border-radius: 5px; cursor: pointer; 
             font-weight: bold; font-size: 13px; 
-            margin-left: auto; /* 強制靠右 */
+            margin-left: auto; 
         }
         .btn-export-top:hover { opacity: 0.9; }
 
-        /* 下方區域：將 Checkbox 移至下方按鈕群組的樣式 */
         .gender-checkbox-group {
             display: flex; align-items: center; gap: 8px; cursor: pointer; 
             font-size: 14px; color: var(--primary); font-weight: bold;
-            margin-left: auto; /* 強制靠右 */
+            margin-left: auto;
             background: #fff; padding: 5px 10px; border-radius: 5px; border: 1px solid #ccc;
         }
         .gender-checkbox-group input { width: 18px; height: 18px; cursor: pointer; }
 
-        /* 彈跳視窗樣式 */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.5); z-index: 999; display: none;
@@ -132,28 +129,13 @@
             position: relative; 
         }
         
-        /* 右上角關閉按鈕 */
         .close-modal-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 30px;
-            height: 30px;
-            background: #f1f2f6;
-            border-radius: 50%;
-            color: #7f8c8d;
-            font-size: 20px;
-            font-weight: bold;
-            line-height: 30px;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.2s;
-            user-select: none;
+            position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+            background: #f1f2f6; border-radius: 50%; color: #7f8c8d;
+            font-size: 20px; font-weight: bold; line-height: 30px;
+            text-align: center; cursor: pointer; transition: 0.2s; user-select: none;
         }
-        .close-modal-btn:hover {
-            background: #e74c3c;
-            color: white;
-        }
+        .close-modal-btn:hover { background: #e74c3c; color: white; }
 
         .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: var(--primary); }
         .modal-row { margin-bottom: 15px; }
@@ -208,7 +190,18 @@
         .group-pod { direction: ltr; background: #ffffff; border: 1px solid #d1d8e0; border-radius: 10px; padding: 15px; display: grid; grid-template-columns: 1fr 60px 1fr; grid-template-rows: repeat(3, 70px); gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .center-table { grid-column: 2; grid-row: 1 / span 3; background: var(--table-color); border-radius: 4px; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: upright; color: #2c3e50; font-size: 18px; font-weight: bold; letter-spacing: 1.5em; text-indent: 0.75em; }
 
-        .student-tag { padding: 6px 12px; background: white; border: 2px solid var(--primary); border-radius: 6px; cursor: grab; font-weight: bold; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--primary); user-select: none; white-space: nowrap; touch-action: none; }
+        /* --- 修正 student-tag 的 CSS --- */
+        .student-tag { 
+            padding: 6px 12px; background: white; border: 2px solid var(--primary); 
+            border-radius: 6px; cursor: grab; font-weight: bold; font-size: 16px; 
+            display: inline-flex; align-items: center; justify-content: center; 
+            color: var(--primary); 
+            user-select: none; 
+            -webkit-user-select: none; /* iOS Safari 專用 */
+            white-space: nowrap; 
+            touch-action: none; /* 讓 JS 接管觸控 */
+            -webkit-touch-callout: none; 
+        }
         
         .is-girl { color: var(--girl); border-color: var(--girl); background: #fff5f5; }
         .is-boy { color: var(--boy); border-color: var(--boy); background: #f0f7ff; }
@@ -439,13 +432,11 @@
 
         window.onload = () => { buildClassroom(); loadSavedData(); };
 
-        // --- 驗證彈跳視窗按鈕狀態 ---
         function validateModalState() {
             const girlVal = document.getElementById('girlRangeInput').value.trim();
             const boyVal = document.getElementById('boyRangeInput').value.trim();
             const confirmBtn = document.querySelector('.btn-confirm');
             
-            // 如果兩個輸入框都為空，則鎖定按鈕
             if (girlVal === '' && boyVal === '') {
                 confirmBtn.disabled = true;
             } else {
@@ -453,16 +444,13 @@
             }
         }
 
-        // --- 性別/模板 邏輯 ---
         function toggleGenderSettings(checkbox) {
             if (checkbox.checked) {
                 document.getElementById('genderModal').style.display = 'flex';
-                // 恢復上次設定
                 document.getElementById('girlRangeInput').value = genderConfig.girlStr || '';
                 document.getElementById('boyRangeInput').value = genderConfig.boyStr || '';
                 document.getElementById('templateSwitch').checked = genderConfig.isTemplate || false;
                 
-                // 開啟時立即檢查狀態
                 validateModalState();
             } else {
                 genderConfig.active = false;
@@ -471,7 +459,6 @@
             }
         }
 
-        // 滑動開關邏輯
         function toggleTemplate(switchBtn) {
             const girlInput = document.getElementById('girlRangeInput');
             const boyInput = document.getElementById('boyRangeInput');
@@ -483,11 +470,9 @@
                 girlInput.value = "";
                 boyInput.value = "";
             }
-            // 切換模板後檢查狀態
             validateModalState();
         }
 
-        // 手動輸入時，如果是模板模式，自動取消模板開關
         function checkManualEdit() {
             const switchBtn = document.getElementById('templateSwitch');
             if (switchBtn.checked) {
@@ -497,7 +482,6 @@
                     switchBtn.checked = false;
                 }
             }
-            // 輸入時即時檢查狀態
             validateModalState();
         }
 
@@ -506,7 +490,6 @@
             if (!save) {
                 document.getElementById('genderToggleCheckbox').checked = false;
                 genderConfig.active = false;
-                // 修正：取消時若原本有設定，需更新畫面
                 updateAllTagsGender();
                 saveAll();
             }
@@ -566,8 +549,6 @@
             updateStats();
         }
 
-        // --- 核心功能 ---
-
         function updateClassDisplay() {
             const name = document.getElementById('classNameInput').value || '班級';
             document.getElementById('classLabelDisplay').innerText = name;
@@ -591,7 +572,6 @@
         }
 
         function checkGenBtnLock() {
-            // 產生標籤的檢查依舊看全部，避免重複產生
             const hasTags = document.querySelectorAll('.student-tag').length > 0;
             const btn = document.getElementById('genBtn');
             btn.disabled = hasTags;
@@ -675,9 +655,15 @@
                 saveAll(); return;
             }
             if (slot.querySelector('.student-tag')) return;
+            
+            // 建立輸入框並確保聚焦
             const input = document.createElement('input');
             input.type = 'text'; input.className = 'seat-input'; input.placeholder = '座號/姓名';
-            slot.innerHTML = ''; slot.appendChild(input); input.focus();
+            slot.innerHTML = ''; slot.appendChild(input); 
+            
+            // 延遲聚焦以適應 iOS 鍵盤彈出
+            setTimeout(() => input.focus(), 50);
+
             let composing = false;
             input.addEventListener('compositionstart', () => composing = true);
             input.addEventListener('compositionend', () => composing = false);
@@ -706,7 +692,6 @@
         
         function updateStats() {
             let t=0, g=0, b=0;
-            // 修正：只計算「座位區」的學生，不包含「標籤待分配區」，符合要求
             document.querySelectorAll('.seat-slot .student-tag').forEach(tag => {
                 t++; 
                 if(tag.classList.contains('is-girl')) g++; 
@@ -718,13 +703,17 @@
             checkGenBtnLock();
         }
 
+        // --- 核心互動：建立標籤 (包含點選、雙擊、長按邏輯) ---
         function createTag(text, id, container) {
             const tag = document.createElement('div');
             tag.className = `student-tag ${getGenderColor(text)}`;
-            tag.id = `TAG-${id}`; tag.draggable = true; tag.innerText = text;
+            tag.id = `TAG-${id}`; 
+            tag.draggable = true; 
+            tag.innerText = text;
             tag.ondragstart = (e) => e.dataTransfer.setData("text", e.target.id);
-            tag.ondblclick = (e) => {
-                e.stopPropagation();
+            
+            // 執行雙擊動作的函式
+            const doDoubleClickAction = () => {
                 const pool = document.getElementById('student-pool');
                 const parent = tag.parentElement;
                 if (parent && parent.classList.contains('seat-slot')) {
@@ -737,18 +726,62 @@
                     saveAll();
                 }
             };
+
+            // 電腦版雙擊
+            tag.ondblclick = (e) => {
+                e.stopPropagation();
+                doDoubleClickAction();
+            };
             
+            // 電腦版右鍵刪除
             tag.oncontextmenu = (e) => {
                 e.preventDefault();
-                if (confirm(`確定要刪除「${text}」嗎？`)) {
-                    const parent = tag.parentElement;
-                    tag.remove();
-                    if(parent && parent.classList.contains('seat-slot')) resetSlot(parent);
-                    updatePoolState(); updateStats(); saveAll();
-                }
+                deleteTagLogic(tag, text);
             };
 
+            // --- iPad/手機 觸控邏輯 (長按刪除 + 模擬雙擊) ---
+            let touchTimer = null;
+            let lastTapTime = 0;
+
+            tag.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    // 長按計時器 (1秒後刪除)
+                    touchTimer = setTimeout(() => {
+                        e.preventDefault(); 
+                        deleteTagLogic(tag, text);
+                    }, 1000); 
+                }
+            }, {passive: false});
+
+            tag.addEventListener('touchend', (e) => {
+                // 清除長按計時器
+                if(touchTimer) clearTimeout(touchTimer);
+                
+                // 模擬雙擊判定 (Double Tap)
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTapTime;
+                
+                // 300ms 內的第二次點擊視為雙擊
+                if (tapLength < 300 && tapLength > 0) {
+                    e.preventDefault(); // 防止縮放
+                    doDoubleClickAction();
+                }
+                lastTapTime = currentTime;
+            });
+
+            tag.addEventListener('touchmove', () => { if(touchTimer) clearTimeout(touchTimer); });
+
             container.appendChild(tag); updatePoolState(); return tag;
+        }
+
+        // 獨立出的刪除邏輯
+        function deleteTagLogic(tag, text) {
+            if (confirm(`確定要刪除「${text}」嗎？`)) {
+                const parent = tag.parentElement;
+                tag.remove();
+                if(parent && parent.classList.contains('seat-slot')) resetSlot(parent);
+                updatePoolState(); updateStats(); saveAll();
+            }
         }
 
         function handleGenerate() {
@@ -837,21 +870,17 @@
             const mainContainer = document.getElementById('group-result-container');
             container.innerHTML = '';
             
-            // 永遠顯示主容器
             mainContainer.style.display = 'block';
 
-            // 選取匯出圖片按鈕
             const imgBtn = document.querySelector('.btn-img');
 
             if (Object.keys(groups).length === 0) {
-                // 修正確認：若無分組，停用匯出圖片按鈕 (設為 disabled)
                 if(imgBtn) imgBtn.disabled = true;
 
                 container.innerHTML = '<div class="empty-group-hint">目前尚未建立顏色分組（無法匯出圖檔，僅可匯出 Excel 紀錄）</div>';
                 return;
             }
 
-            // 若有分組，啟用按鈕
             if(imgBtn) imgBtn.disabled = false;
 
             Object.keys(colorDefinitions).forEach(key => {
@@ -861,7 +890,6 @@
                     const card = document.createElement('div');
                     card.className = 'group-card';
                     card.style.setProperty('--group-color', colorInfo.hex);
-                    // 修改：移除單位「人」，只顯示數字
                     card.innerHTML = `
                         <div class="group-title">
                             <span class="group-dot" style="background:${colorInfo.hex}"></span>
@@ -894,7 +922,6 @@
         function loadSavedData() {
             const saved = localStorage.getItem('SeatingData_Final_VisualUpdate'); 
             if (!saved) {
-                // BUG FIX: 若無存檔，仍須執行 renderGroupList 以確保按鈕處於鎖定狀態
                 renderGroupList();
                 return;
             }
@@ -989,7 +1016,6 @@
         }
 
         function exportGroupImage() {
-            // 注意：若無分組內容，匯出的圖片會只包含標題與按鈕區（按鈕會被隱藏）
             const name = document.getElementById('classNameInput').value || '班級';
             const element = document.getElementById('group-result-container');
             const btns = element.querySelector('.group-btn-area');
@@ -1003,11 +1029,9 @@
         }
 
         function exportGroupExcel() {
-            // 1. 取得班級名稱
             const className = document.getElementById('classNameInput').value || "班級";
             const rows = [];
 
-            // 定義判斷標籤屬性的函式
             const getTagType = (tag) => {
                 if (!tag) return "";
                 if (tag.classList.contains('is-girl')) return "女生";
@@ -1015,13 +1039,11 @@
                 return "一般";
             };
 
-            // --- 第一部分：處理已入座的學生 ---
             document.querySelectorAll('.seat-slot').forEach(slot => {
                 const tag = slot.querySelector('.student-tag');
                 const colorClass = Array.from(slot.classList).find(c => colorDefinitions[c]);
                 const seatID = slot.dataset.pos;
                 
-                // 解析座位名稱
                 const parts = seatID.split('-'); 
                 const groupIdx = parseInt(parts[0].substring(1)) - 1;
                 const sideIdx = parseInt(parts[2].substring(1));
@@ -1034,7 +1056,7 @@
                     rows.push({
                         "班級名稱": className,
                         "狀態": "已入座",
-                        "標籤屬性": getTagType(tag), // 新增此欄位
+                        "標籤屬性": getTagType(tag),
                         "組別": colorClass ? colorDefinitions[colorClass].name : "未分組",
                         "姓名": tag ? tag.innerText : "(空位)", 
                         "座位說明": readableSeat,
@@ -1043,13 +1065,12 @@
                 }
             });
 
-            // --- 第二部分：處理待分配區 (POOL) 的學生 ---
             const poolTags = document.querySelectorAll('#student-pool .student-tag');
             poolTags.forEach(tag => {
                 rows.push({
                     "班級名稱": className,
                     "狀態": "待分配",
-                    "標籤屬性": getTagType(tag), // 新增此欄位
+                    "標籤屬性": getTagType(tag),
                     "組別": "未分組",
                     "姓名": tag.innerText,
                     "座位說明": "標籤待分配區",
@@ -1057,7 +1078,6 @@
                 });
             });
 
-            // 3. 檢查是否有資料並匯出
             if (rows.length === 0) {
                 alert("目前沒有任何學生名單或分組紀錄可匯出！");
                 return;
@@ -1066,15 +1086,14 @@
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(rows);
             
-            // 設定欄位寬度
             ws['!cols'] = [
-                { wch: 15 }, // 班級名稱
-                { wch: 10 }, // 狀態
-                { wch: 10 }, // 標籤屬性 (新增)
-                { wch: 12 }, // 組別
-                { wch: 15 }, // 姓名
-                { wch: 20 }, // 座位說明
-                { wch: 15 }  // 系統座標
+                { wch: 15 }, 
+                { wch: 10 }, 
+                { wch: 10 }, 
+                { wch: 12 }, 
+                { wch: 15 }, 
+                { wch: 20 }, 
+                { wch: 15 } 
             ];
             
             XLSX.utils.book_append_sheet(wb, ws, "座位與分組紀錄");
@@ -1095,14 +1114,12 @@
 
                 if(jsonData.length === 0) { alert("Excel 檔案無資料！"); return; }
 
-                // 匯入時讀取班級名稱
                 if(jsonData[0]['班級名稱']) {
                     document.getElementById('classNameInput').value = jsonData[0]['班級名稱'];
                 } else if(jsonData[0]['班級']) {
                     document.getElementById('classNameInput').value = jsonData[0]['班級'];
                 }
 
-                // 清空現有狀態
                 const pool = document.getElementById('student-pool');
                 pool.innerHTML = ''; 
                 
@@ -1111,7 +1128,7 @@
                     Array.from(s.classList).forEach(c => { if(c.startsWith('c-')) s.classList.remove(c); });
                 });
 
-                let allNames = []; // 同步名單用
+                let allNames = []; 
 
                 jsonData.forEach(row => {
                     const seatID = row['系統座標'];
@@ -1126,7 +1143,6 @@
                             createTag(name, `IMP-POOL-${Date.now()}-${Math.random()}`, pool);
                         }
                     } else {
-                        // 處理已入座名單
                         const slot = document.querySelector(`[data-pos="${seatID}"]`);
                         if(slot) {
                             if(validName) {
@@ -1134,7 +1150,6 @@
                                 slot.innerHTML = '';
                                 slot.appendChild(tag);
                             }
-                            // 恢復顏色分組
                             if(colorName && colorName !== "未分組" && colorName !== "未安排座位") {
                                 const colorKey = Object.keys(colorDefinitions).find(k => colorDefinitions[k].name === colorName);
                                 if(colorKey) slot.classList.add(colorKey);
@@ -1143,7 +1158,6 @@
                     }
                 });
 
-                // 將匯入的名單同步回 textarea
                 if(allNames.length > 0) {
                     document.getElementById('rawNames').value = allNames.join('\n');
                 }
