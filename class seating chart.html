@@ -319,10 +319,10 @@
         <div class="panel-top-row">
             <div class="panel-left-col">
                 <div class="input-item">
-                    <label>教室配置</label>
+                    <label>教室配置選擇</label>
                     <select id="layoutSelect" class="layout-select" onchange="switchLayout(this.value)">
-                        <option value="group">分組教室 (6組 x 6人)</option>
-                        <option value="standard">一般教室 (6行 x 6列)</option>
+                        <option value="group">專業教室 (可排36人/6組x6人)</option>
+                        <option value="standard">一般教室 (可排36人/6x6)</option>
                     </select>
                 </div>
 
@@ -378,11 +378,11 @@
                     <div class="group-mode-area">
                         <label class="mode-option">
                             <input type="radio" name="groupMode" value="bySize" checked onchange="toggleGroupInput()">
-                            依每組人數
+                            每組人數
                         </label>
                         <label class="mode-option">
                             <input type="radio" name="groupMode" value="byCount" onchange="toggleGroupInput()">
-                            依要分幾組
+                            分組數
                         </label>
                     </div>
 
@@ -444,7 +444,7 @@
             <span class="close-modal-btn" onclick="closeGenderModal(false)">×</span>
             <div class="modal-title">設定性別顏色範圍</div>
             <div class="template-toggle-row">
-                <span class="template-label">使用預設模板 (女1-16, 男26-44)</span>
+                <span class="template-label">使用預設分配 (女1-16, 男26-44)</span>
                 <label class="switch">
                     <input type="checkbox" id="templateSwitch" onchange="toggleTemplate(this)">
                     <span class="slider round"></span>
