@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Class Seating Chart System (Touch Optimized)</title>
+    <title>Class Seating Chart System (Layout Updated)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
@@ -12,14 +12,9 @@
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
 
     <script>
-        // --- iPad/手機拖曳與點選優化設定 ---
         MobileDragDrop.polyfill({
-            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride,
-            // 重要：按住 300ms 後才判定為拖曳，保留時間給「點選」和「雙擊」
-            holdToDrag: 300 
+            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
         });
-        
-        // 解決 iOS 拖拉時與畫面捲動的衝突
         window.addEventListener('touchmove', function() {}, {passive: false});
     </script>
     
@@ -28,226 +23,256 @@
             --primary: #34495e; --accent: #2980b9; --bg: #f5f6fa; 
             --table-color: #d1d8e0; --girl: #d63031; --boy: #0984e3; 
             --success: #27ae60; --orange-bg: #f39c12; --random: #8e44ad;
-            --view-btn: #16a085; --clear-btn: #7f8c8d; --add-btn: #2c3e50;
+            --view-btn: #16a085; 
+            /* 修改：清除按鈕預設改為紅色 */
+            --clear-btn: #e74c3c; 
+            --add-btn: #2c3e50;
             --excel-btn: #217346; --group-btn: #d35400; --img-btn: #0984e3;
             --import-excel-btn: #2980b9;
+            /* 新增：匯入名單按鈕顏色 (紫色) */
+            --import-list-btn: #8e44ad;
+            --lock-btn: #00C1D4; 
+            --lock-btn-active: #0097a7;
             --main-width: 1100px;
         }
-        /* RWD 調整 */
         @media (max-width: 1150px) {
             :root { --main-width: 100%; }
             body { padding: 10px; }
             .control-panel { padding: 15px; }
             .stage-container { transform: scale(0.8); margin-bottom: 20px; }
-            .classroom-grid { transform: scale(0.8); transform-origin: top center; margin-bottom: -150px; } 
+            .classroom-grid, .standard-grid { transform: scale(0.8); transform-origin: top center; margin-bottom: -150px; }
         }
 
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; touch-action: manipulation; }
-        
         .main-title { text-align: center; font-size: 16pt; color: #000000; font-weight: bold; margin-bottom: 20px; width: 100%; }
-
-        .control-panel { 
-            background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            width: var(--main-width); box-sizing: border-box; margin-bottom: 20px; z-index: 100;
-        }
-        
+        .control-panel { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: var(--main-width); box-sizing: border-box; margin-bottom: 20px; z-index: 100; }
         .panel-top-row { display: flex; gap: 30px; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; }
         .panel-left-col { flex: 0 0 350px; display: flex; flex-direction: column; gap: 15px; }
         .panel-right-col { flex: 1; display: flex; flex-direction: column; gap: 15px; min-width: 300px; }
-
         @media (max-width: 768px) {
             .panel-top-row { flex-direction: column; gap: 15px; }
             .panel-left-col { flex: 1; width: 100%; }
             .panel-right-col { width: 100%; }
-            .color-row { flex-wrap: wrap; }
         }
 
         .input-item { display: flex; flex-direction: column; }
         .input-item label { font-weight: bold; color: var(--primary); margin-bottom: 8px; white-space: nowrap; }
         
-        .color-row { 
-            display: flex; align-items: center; gap: 8px; background: #f9f9f9; padding: 12px; 
-            border-radius: 8px; border: 1px solid #eee; 
-            flex-wrap: nowrap; overflow-x: auto;
-            -webkit-overflow-scrolling: touch; 
+        .layout-select {
+            padding: 8px; font-size: 15px; border: 2px solid var(--accent);
+            border-radius: 5px; font-weight: bold; color: var(--primary);
+            background: white; cursor: pointer;
         }
-        .color-selector { display: flex; gap: 5px; flex-wrap: nowrap; align-items: center; }
-        .color-btns-right { margin-left: auto; display: flex; gap: 5px; flex-shrink: 0; }
 
-        .color-dot { width: 22px; height: 22px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; flex-shrink: 0; }
-        .color-dot.active { border-color: #000; transform: scale(1.15); box-shadow: 0 0 5px rgba(0,0,0,0.3); }
-        .dot-none { background: #fff; border: 1px solid #ccc; position: relative; }
-        .dot-none::after { content: '×'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #aaa; font-size: 14px; }
-        
-        .btn-small-action { 
-            padding: 0 12px; border-radius: 4px; cursor: pointer; font-size: 13px; 
-            white-space: nowrap; border: 1px solid transparent; font-weight: bold;
-            height: 26px; line-height: 24px; flex-shrink: 0;
+        .color-row { 
+            display: flex; align-items: flex-start; gap: 15px; background: #f9f9f9; padding: 15px; 
+            border-radius: 8px; border: 1px solid #eee; flex-wrap: wrap; 
         }
+        .color-selector { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; }
+        
+        .color-btns-right { 
+            display: flex; gap: 15px; flex-shrink: 0; margin-left: auto; 
+            align-items: center; background: white; padding: 8px 15px; 
+            border-radius: 6px; border: 1px solid #ddd;
+        }
+
+        @media (max-width: 800px) {
+            .color-row { flex-direction: column; align-items: stretch; }
+            .color-btns-right { margin-left: 0; margin-top: 10px; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+        }
+
+        .color-dot { 
+            width: 34px !important; height: 34px !important; 
+            min-width: 34px !important; min-height: 34px !important;
+            border-radius: 4px; cursor: pointer; 
+            border: 2px solid transparent; transition: 0.2s; 
+            flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; font-size: 14px;
+            text-shadow: 0px 1px 3px rgba(0,0,0,0.8); 
+            user-select: none; margin-bottom: 2px;
+            box-sizing: border-box; 
+        }
+        .color-dot.active { border-color: #000; transform: scale(1.1); box-shadow: 0 0 5px rgba(0,0,0,0.3); z-index: 2; }
+        .dot-none { background: #fff; border: 1px solid #ccc; color: #aaa; text-shadow: none; }
+        .dot-none::after { content: '×'; font-size: 18px; }
+        
+        .btn-small-action { padding: 0 12px; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap; border: 1px solid transparent; font-weight: bold; height: 32px; line-height: 30px; flex-shrink: 0; }
         .btn-clear-all-colors { background: #eee; border-color: #ccc; color: #333; }
         .btn-clear-all-colors:hover { background: #e0e0e0; }
         .btn-random-group { background: var(--group-btn); color: white; }
         .btn-random-group:hover { opacity: 0.9; }
 
+        .group-mode-area { display: flex; flex-direction: column; gap: 5px; border-right: 1px solid #eee; padding-right: 15px; }
+        .mode-option { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: bold; color: #555; cursor: pointer; }
+        .mode-option input[type="radio"] { cursor: pointer; }
+        
+        .group-input-area { display: flex; align-items: center; gap: 5px; }
+        
+        .group-size-input { 
+            width: 60px !important; min-width: 60px !important; max-width: 60px !important;
+            height: 32px; padding: 0 5px; text-align: center; 
+            border: 1px solid #ccc; border-radius: 4px; font-weight: bold;
+            box-sizing: border-box; 
+        }
+        .group-size-input:disabled { background: #f0f0f0; color: #aaa; cursor: not-allowed; }
+
+        #unitLabel {
+            font-size: 13px; font-weight: bold; color: #555;
+            display: inline-block; width: 45px; text-align: left; white-space: nowrap;
+        }
+
         .add-group { display: flex; gap: 8px; width: 100%; align-items: center; }
         .add-group input { flex: 1; }
         .btn-add { background: var(--add-btn); color: white; height: 42px; padding: 0 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; white-space: nowrap; flex-shrink: 0; }
-        
         input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; box-sizing: border-box; }
         textarea { height: 125px; font-size: 14px; resize: none; line-height: 1.5; }
-
+        
         .import-btn-group { display: flex; gap: 10px; margin-top: 5px; }
-        .btn-import-excel { background: var(--import-excel-btn); color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; width: 100%; }
-
+        .btn-import-excel { background: var(--import-excel-btn); color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; flex: 1; }
+        /* 新增：匯入名單按鈕樣式 */
+        .btn-import-list { background: var(--import-list-btn); color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; width: auto; font-weight: bold; }
+        
+        .extra-action-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .extra-action-group button { flex: 1; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 13px; color: white; min-width: 80px; }
+        .btn-export-img-action { background: var(--success); }
+        .btn-export-img-action:hover { opacity: 0.9; }
+        
         .gender-setting-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; width: 100%; }
-        
-        .btn-export-top { 
-            background: var(--success); color: white; border: none; 
-            padding: 5px 15px; border-radius: 5px; cursor: pointer; 
-            font-weight: bold; font-size: 13px; 
-            margin-left: auto; 
-        }
-        .btn-export-top:hover { opacity: 0.9; }
-
-        .gender-checkbox-group {
-            display: flex; align-items: center; gap: 8px; cursor: pointer; 
-            font-size: 14px; color: var(--primary); font-weight: bold;
-            margin-left: auto;
-            background: #fff; padding: 5px 10px; border-radius: 5px; border: 1px solid #ccc;
-        }
+        .gender-checkbox-group { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--primary); font-weight: bold; margin-left: auto; background: #fff; padding: 5px 10px; border-radius: 5px; border: 1px solid #ccc; }
         .gender-checkbox-group input { width: 18px; height: 18px; cursor: pointer; }
-
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 999; display: none;
-            align-items: center; justify-content: center;
-        }
-        .modal-box {
-            background: white; padding: 25px; border-radius: 10px; width: 400px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            max-width: 90%;
-            position: relative; 
-        }
-        
-        .close-modal-btn {
-            position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
-            background: #f1f2f6; border-radius: 50%; color: #7f8c8d;
-            font-size: 20px; font-weight: bold; line-height: 30px;
-            text-align: center; cursor: pointer; transition: 0.2s; user-select: none;
-        }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; display: none; align-items: center; justify-content: center; }
+        .modal-box { background: white; padding: 25px; border-radius: 10px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); max-width: 90%; position: relative; }
+        .close-modal-btn { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; background: #f1f2f6; border-radius: 50%; color: #7f8c8d; font-size: 20px; font-weight: bold; line-height: 30px; text-align: center; cursor: pointer; transition: 0.2s; user-select: none; }
         .close-modal-btn:hover { background: #e74c3c; color: white; }
-
         .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: var(--primary); }
         .modal-row { margin-bottom: 15px; }
         .modal-row label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
         .modal-row input { width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box; }
-        
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-        
-        .btn-confirm, .btn-cancel {
-            border: none; padding: 10px 24px; border-radius: 5px; cursor: pointer;
-            font-weight: bold; font-size: 14px; transition: all 0.1s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        .btn-confirm, .btn-cancel { border: none; padding: 10px 24px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.1s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .btn-confirm { background: var(--accent); color: white; }
         .btn-confirm:disabled { background: #bdc3c7; cursor: not-allowed; box-shadow: none; }
-        
         .btn-cancel { background: #e74c3c; color: white; }
         .btn-cancel:hover { background: #c0392b; }
-
-        .template-toggle-row {
-            display: flex; align-items: center; justify-content: space-between; 
-            background: var(--orange-bg); 
-            padding: 10px; border-radius: 6px; margin-bottom: 15px; 
-            border: 1px solid #e67e22; 
-        }
+        .template-toggle-row { display: flex; align-items: center; justify-content: space-between; background: var(--orange-bg); padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e67e22; }
         .template-label { font-weight: bold; color: #000000; font-size: 14px; }
-        
         .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        
         input:checked + .slider { background-color: #d35400; }
         input:checked + .slider:before { transform: translateX(22px); }
-
+        
         #student-pool { 
-            display: flex; flex-wrap: wrap; gap: 10px; min-height: 50px; padding: 15px;
-            border: 2px dashed #e0e0e0; border-radius: 8px; margin-top: 15px; 
-            background: rgba(255, 255, 255, 0.3); color: #bdc3c7; font-size: 13px;
+            display: flex; flex-wrap: wrap; gap: 8px; 
+            min-height: 50px; padding: 15px; 
+            border: 2px dashed #e0e0e0; border-radius: 8px; 
+            margin-top: 15px; background: rgba(255, 255, 255, 0.3); 
+            color: #bdc3c7; font-size: 13px; 
+            align-content: flex-start;
         }
-
+        
         #export-area { padding: 40px 60px; background: var(--bg); display: flex; flex-direction: column; align-items: center; overflow: visible; }
         .stage-container { display: flex; align-items: center; justify-content: center; width: var(--main-width); position: relative; height: 60px; margin-bottom: 40px;}
         .teacher-desk { width: 350px; height: 45px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: bold; font-size: 20px; letter-spacing: 10px; }
         .stat-label { position: absolute; left: 0; background: white; color: black; padding: 8px 15px; border-radius: 8px; border: 1px solid #dcdde1; font-weight: bold; font-size: 16px; min-width: 180px; display: flex; gap: 15px; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .class-label { position: absolute; right: 0; background: var(--orange-bg); color: black; padding: 8px 25px; border-radius: 8px; font-weight: bold; font-size: 18px; min-width: 120px; text-align: center; }
-
+        
         .classroom-grid { display: grid; grid-template-columns: repeat(3, 1fr); direction: rtl; gap: 40px 25px; width: var(--main-width); }
-        .rotate-180 { transform: rotate(180deg); }
-        .rotate-180 .student-tag, .rotate-180 .center-table, .rotate-180 .teacher-desk, .rotate-180 .class-label, .rotate-180 .stat-label, .rotate-180 .seat-slot-text, .rotate-180 .seat-input { transform: rotate(180deg); }
+        
+        .standard-grid { 
+            display: grid; 
+            grid-template-columns: repeat(6, 1fr); 
+            gap: 15px; 
+            width: var(--main-width); 
+            direction: ltr; 
+        }
 
+        .rotate-180 { transform: rotate(180deg); }
+        .rotate-180 .student-tag, .rotate-180 .center-table, .rotate-180 .teacher-desk, .rotate-180 .class-label, .rotate-180 .stat-label, .rotate-180 .seat-slot-text, .rotate-180 .seat-input, .rotate-180 .seat-slot.locked { transform: rotate(180deg); }
+        
         .group-pod { direction: ltr; background: #ffffff; border: 1px solid #d1d8e0; border-radius: 10px; padding: 15px; display: grid; grid-template-columns: 1fr 60px 1fr; grid-template-rows: repeat(3, 70px); gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .center-table { grid-column: 2; grid-row: 1 / span 3; background: var(--table-color); border-radius: 4px; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; text-orientation: upright; color: #2c3e50; font-size: 18px; font-weight: bold; letter-spacing: 1.5em; text-indent: 0.75em; }
-
-        /* --- 修正 student-tag 的 CSS --- */
-        .student-tag { 
-            padding: 6px 12px; background: white; border: 2px solid var(--primary); 
-            border-radius: 6px; cursor: grab; font-weight: bold; font-size: 16px; 
-            display: inline-flex; align-items: center; justify-content: center; 
-            color: var(--primary); 
-            user-select: none; 
-            -webkit-user-select: none; /* iOS Safari 專用 */
-            white-space: nowrap; 
-            touch-action: none; /* 讓 JS 接管觸控 */
-            -webkit-touch-callout: none; 
+        
+        .standard-seat-container {
+            background: #fff;
+            padding: 5px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 80px;
         }
         
+        .seat-slot { 
+            border: 2px dashed #dcdde1; border-radius: 6px; 
+            display: flex; align-items: center; justify-content: center; 
+            background: #fbfbfb; 
+            width: 100%; height: 100%; 
+            cursor: pointer; border-width: 3px; 
+            overflow: hidden; 
+            position: relative;
+        }
+
+        .seat-slot.locked {
+            border: 2px solid #ccc !important;
+            background-color: #eee !important;
+            cursor: not-allowed;
+            color: #999;
+            font-size: 40px; 
+            font-weight: bold;
+            user-select: none;
+        }
+        .seat-slot.locked::after { content: '×'; }
+        
+        .student-tag { 
+            width: fit-content !important; 
+            height: auto;
+            min-height: 32px; 
+            max-width: 100%; 
+            background: white; border: 2px solid var(--primary); 
+            border-radius: 6px; cursor: grab; font-weight: bold; 
+            display: inline-flex; align-items: center; justify-content: center; 
+            color: var(--primary); user-select: none; 
+            white-space: nowrap;
+            touch-action: none;
+            box-sizing: border-box; 
+            font-size: 16px;
+            padding: 2px 8px;
+        }
+
         .is-girl { color: var(--girl); border-color: var(--girl); background: #fff5f5; }
         .is-boy { color: var(--boy); border-color: var(--boy); background: #f0f7ff; }
         .is-neutral { color: var(--primary); border-color: var(--primary); background: white; }
-
-        .seat-slot { border: 2px dashed #dcdde1; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #fbfbfb; min-height: 45px; cursor: pointer; border-width: 3px; }
+        
         .seat-slot-text { color: #bdc3c7; font-size: 14px; pointer-events: none; }
         .seat-input { width: 85%; border: 1px solid var(--accent); border-radius: 4px; text-align: center; font-size: 16px; outline: none; }
 
-        .c-red { border-color: #ff4d4d !important; border-style: solid !important; } 
-        .c-orange { border-color: #ff9f43 !important; border-style: solid !important; }
-        .c-yellow { border-color: #feca57 !important; border-style: solid !important; } 
-        .c-lime { border-color: #badc58 !important; border-style: solid !important; }
-        .c-green { border-color: #6ab04c !important; border-style: solid !important; } 
-        .c-teal { border-color: #1dd1a1 !important; border-style: solid !important; }
-        .c-cyan { border-color: #48dbfb !important; border-style: solid !important; } 
-        .c-blue { border-color: #00a8ff !important; border-style: solid !important; }
-        .c-navy { border-color: #192a56 !important; border-style: solid !important; } 
-        .c-indigo { border-color: #5f27cd !important; border-style: solid !important; }
-        .c-purple { border-color: #ae1af7 !important; border-style: solid !important; } 
-        .c-pink { border-color: #f368e0 !important; border-style: solid !important; }
-        .c-rose { border-color: #ff9ff3 !important; border-style: solid !important; } 
-        .c-brown { border-color: #8d6e63 !important; border-style: solid !important; }
-        .c-grey { border-color: #cdb4db !important; border-style: solid !important; } 
-        .c-dark { border-color: #2f3640 !important; border-style: solid !important; } 
-        .c-black { border-color: #000000 !important; border-style: solid !important; }
+        /* 動態生成的 CSS 會插入這裡 */
+        #dynamic-styles-area {}
 
         .btn-group { margin-top: 10px; display: flex; gap: 8px; width: 100%; flex-wrap: wrap; }
         button { padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
         button:disabled { background-color: #bdc3c7 !important; opacity: 0.6; cursor: not-allowed; }
-        
         .btn-gen { background: var(--accent); color: white; }
         .btn-view { background: var(--view-btn); color: white; }
         .btn-random { background: var(--random); color: white; }
         .btn-return { background: #f39c12; color: white; }
         .btn-reset { background: #e74c3c; color: white; }
-        .btn-clear { background: var(--clear-btn); color: white; }
         
+        /* 修改：清除按鍵樣式 */
+        .btn-clear { background: var(--clear-btn); color: white; }
+        /* 新增：清除按鍵按下時變灰 */
+        .btn-clear:active { background: #95a5a6 !important; transform: translateY(2px); }
+
         .btn-excel { background: var(--excel-btn); color: white; }
         .btn-img { background: var(--img-btn); color: white; }
+        
+        .btn-lock { background: var(--lock-btn); color: white; }
+        .btn-lock.active { background: var(--lock-btn-active); box-shadow: inset 0 3px 5px rgba(0,0,0,0.3); border: 2px solid #000; }
 
-        #group-result-container {
-            width: var(--main-width); background: white; padding: 30px;
-            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 20px; 
-            display: block;
-        }
+        #group-result-container { width: var(--main-width); background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 20px; display: block; }
         #group-result-container h2 { margin-top: 0; color: var(--primary); font-size: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;}
         .group-btn-area { display: flex; gap: 10px; }
         .group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; margin-top: 15px; }
@@ -256,9 +281,35 @@
         .group-title { font-weight: bold; font-size: 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
         .group-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
         .group-members { font-size: 15px; color: #555; line-height: 1.5; }
-        
         .empty-group-hint { grid-column: 1 / -1; color: #95a5a6; text-align: center; padding: 20px; border: 2px dashed #eee; border-radius: 8px; }
+        
+        body.lock-mode .seat-slot { cursor: no-drop; }
+
+        body.lock-mode .panel-top-row,
+        body.lock-mode .control-panel > .input-item,
+        body.lock-mode #student-pool,
+        body.lock-mode .btn-group > *:not(.btn-lock):not(.btn-reset) {
+            opacity: 0.3;
+            pointer-events: none;
+            filter: grayscale(80%);
+        }
+        
+        body.lock-mode .btn-lock {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 1000;
+            position: relative;
+            filter: none !important;
+        }
+        
+        body.lock-mode .btn-reset {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            filter: none !important;
+        }
+
     </style>
+    <style id="generated-group-css"></style>
 </head>
 <body>
 
@@ -268,9 +319,18 @@
         <div class="panel-top-row">
             <div class="panel-left-col">
                 <div class="input-item">
+                    <label>教室配置</label>
+                    <select id="layoutSelect" class="layout-select" onchange="switchLayout(this.value)">
+                        <option value="group">分組教室 (6組 x 6人)</option>
+                        <option value="standard">一般教室 (6行 x 6列)</option>
+                    </select>
+                </div>
+
+                <div class="input-item">
                     <label>班級名稱</label>
                     <input type="text" id="classNameInput" placeholder="輸入班級名稱..." oninput="saveAll()">
                 </div>
+
                 <div class="input-item">
                     <label>臨時加入名單</label>
                     <div class="add-group">
@@ -284,57 +344,66 @@
                 <div class="input-item">
                     <div class="gender-setting-bar">
                         <label>名單輸入</label>
-                        <button class="btn-export-top" onclick="exportToImage()">匯出座位圖</button>
                     </div>
                     
                     <textarea id="rawNames" placeholder="輸入學生名單..." oninput="saveAll()"></textarea>
                     
                     <div class="import-btn-group">
+                        <input type="file" id="nameListImportInput" accept=".txt, .csv, .xlsx, .xls" style="display: none;" onchange="importNameList(this)">
+                        <button class="btn-import-list" onclick="document.getElementById('nameListImportInput').click()">匯入名單</button>
+                        
                         <input type="file" id="excelImportInput" accept=".xlsx, .xls" style="display: none;" onchange="importFromExcel(this)">
                         <button class="btn-import-excel" onclick="document.getElementById('excelImportInput').click()">匯入分組紀錄Excel座位檔
                         </button>
+                    </div>
+
+                    <div class="extra-action-group">
+                        <button id="genBtn" class="btn-gen" onclick="handleGenerate()">產生標籤</button>
+                        <button class="btn-clear" onclick="clearInput()">清除名單</button>
+                        <button class="btn-view" onclick="toggleView()">切換至：<span id="nextViewText">教師視角</span></button>
+                        <button class="btn-export-img-action" onclick="exportToImage()">匯出座位圖</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="input-item">
-            <label>分組顏色與設定</label>
+            <label>分組設定 (上限 18 組)</label>
             <div class="color-row">
                 <div class="color-selector" id="colorSelector">
                     <div class="color-dot dot-none active" onclick="selColor(this, 'none')" title="清除單次"></div>
-                    <div class="color-dot" style="background:#ff4d4d" onclick="selColor(this, 'c-red')"></div>
-                    <div class="color-dot" style="background:#ff9f43" onclick="selColor(this, 'c-orange')"></div>
-                    <div class="color-dot" style="background:#feca57" onclick="selColor(this, 'c-yellow')"></div>
-                    <div class="color-dot" style="background:#badc58" onclick="selColor(this, 'c-lime')"></div>
-                    <div class="color-dot" style="background:#6ab04c" onclick="selColor(this, 'c-green')"></div>
-                    <div class="color-dot" style="background:#1dd1a1" onclick="selColor(this, 'c-teal')"></div>
-                    <div class="color-dot" style="background:#48dbfb" onclick="selColor(this, 'c-cyan')"></div>
-                    <div class="color-dot" style="background:#00a8ff" onclick="selColor(this, 'c-blue')"></div>
-                    <div class="color-dot" style="background:#192a56" onclick="selColor(this, 'c-navy')"></div>
-                    <div class="color-dot" style="background:#5f27cd" onclick="selColor(this, 'c-indigo')"></div>
-                    <div class="color-dot" style="background:#ae1af7" onclick="selColor(this, 'c-purple')"></div>
-                    <div class="color-dot" style="background:#f368e0" onclick="selColor(this, 'c-pink')"></div>
-                    <div class="color-dot" style="background:#ff9ff3" onclick="selColor(this, 'c-rose')"></div>
-                    <div class="color-dot" style="background:#8d6e63" onclick="selColor(this, 'c-brown')"></div>
-                    <div class="color-dot" style="background:#cdb4db" onclick="selColor(this, 'c-grey')"></div>
-                    <div class="color-dot" style="background:#2f3640" onclick="selColor(this, 'c-dark')"></div>
-                    <div class="color-dot" style="background:#000000" onclick="selColor(this, 'c-black')"></div>
                 </div>
                 
                 <div class="color-btns-right">
-                    <button class="btn-small-action btn-random-group" onclick="fullRandomAndGroup()">全自動分組(2人)</button>
-                    <button class="btn-small-action btn-clear-all-colors" onclick="clearAllBorders()">清除全部分組</button>
+                    <div class="group-mode-area">
+                        <label class="mode-option">
+                            <input type="radio" name="groupMode" value="bySize" checked onchange="toggleGroupInput()">
+                            依每組人數
+                        </label>
+                        <label class="mode-option">
+                            <input type="radio" name="groupMode" value="byCount" onchange="toggleGroupInput()">
+                            依要分幾組
+                        </label>
+                    </div>
+
+                    <div class="group-input-area">
+                        <input type="number" id="groupSizeInput" value="2" min="2" max="18" class="group-size-input" title="設定每組幾人">
+                        <input type="number" id="groupCountInput" value="6" min="2" max="18" class="group-size-input" style="display:none;" title="設定要分幾組">
+                        <span id="unitLabel">人/組</span>
+                    </div>
+
+                    <div style="display: flex; gap: 5px; flex-direction: column;">
+                         <button class="btn-small-action btn-random-group" onclick="fullRandomAndGroup()">執行自動分組</button>
+                         <button class="btn-small-action btn-clear-all-colors" onclick="clearAllBorders()">清除全部分組</button>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="btn-group">
-            <button id="genBtn" class="btn-gen" onclick="handleGenerate()">產生標籤</button>
-            <button class="btn-view" onclick="toggleView()">切換至：<span id="nextViewText">教師視角</span></button>
+            <button class="btn-lock" onclick="toggleLockMode(this)">座位鎖定模式</button>
             <button class="btn-random" onclick="randomDistribute()">隨機排座 (不分組)</button>
             <button class="btn-return" onclick="returnToPool()">標籤全部歸位</button>
-            <button class="btn-clear" onclick="clearInput()">清除名單</button>
             <button class="btn-clear" onclick="clearTags()">清除所有標籤</button>
             <button class="btn-reset" onclick="fullReset()">全部重置</button>
             
@@ -373,9 +442,7 @@
     <div id="genderModal" class="modal-overlay">
         <div class="modal-box">
             <span class="close-modal-btn" onclick="closeGenderModal(false)">×</span>
-            
             <div class="modal-title">設定性別顏色範圍</div>
-            
             <div class="template-toggle-row">
                 <span class="template-label">使用預設模板 (女1-16, 男26-44)</span>
                 <label class="switch">
@@ -383,7 +450,6 @@
                     <span class="slider round"></span>
                 </label>
             </div>
-
             <div class="modal-row">
                 <label>女生座號範圍 (例如: 1-15, 20)</label>
                 <input type="text" id="girlRangeInput" placeholder="請輸入座號..." oninput="checkManualEdit()">
@@ -402,6 +468,8 @@
     <script>
         const tableNames = ["第一桌", "第二桌", "第三桌", "第四桌", "第五桌", "第六桌"];
         let currentView = "student", activeColor = "none";
+        let currentLayout = "group"; 
+        let isLockMode = false;
         
         let genderConfig = {
             active: false,
@@ -410,38 +478,149 @@
             isTemplate: false 
         };
 
-        const colorDefinitions = {
-            'c-red': { hex: '#ff4d4d', name: '紅色組' }, 
-            'c-orange': { hex: '#ff9f43', name: '橘色組' },
-            'c-yellow': { hex: '#feca57', name: '黃色組' }, 
-            'c-lime': { hex: '#badc58', name: '淺綠組' },
-            'c-green': { hex: '#6ab04c', name: '綠色組' }, 
-            'c-teal': { hex: '#1dd1a1', name: '藍綠組' },
-            'c-cyan': { hex: '#48dbfb', name: '青色組' }, 
-            'c-blue': { hex: '#00a8ff', name: '藍色組' },
-            'c-navy': { hex: '#192a56', name: '海軍藍組' }, 
-            'c-indigo': { hex: '#5f27cd', name: '靛色組' },
-            'c-purple': { hex: '#ae1af7', name: '紫色組' }, 
-            'c-pink': { hex: '#f368e0', name: '粉紅組' },
-            'c-rose': { hex: '#ff9ff3', name: '玫瑰組' }, 
-            'c-brown': { hex: '#8d6e63', name: '棕色組' },
-            'c-grey': { hex: '#cdb4db', name: '淺紫色組' }, 
-            'c-dark': { hex: '#2f3640', name: '深灰組' },
-            'c-black': { hex: '#000000', name: '黑色組' }
+        const groupLabels = [
+            'A','B','C','D','E','F','G','H','I','J','K','L','M',
+            'N','O','P','Q','R'
+        ];
+
+        const groupColors = [
+            '#FF4D4D', '#FF9F43', '#FECA57', '#BADC58', '#6AB04C', '#1DD1A1', '#48DBFB', 
+            '#00A8FF', '#192A56', '#5F27CD', '#AE1AF7', '#F368E0', '#FF9FF3', '#8D6E63', 
+            '#CDB4DB', '#2F3640', '#000000', '#EA2027'
+        ];
+
+        let colorDefinitions = {};
+
+        function initColorSystem() {
+            const cssRules = [];
+            const selector = document.getElementById('colorSelector');
+            while (selector.children.length > 1) {
+                selector.removeChild(selector.lastChild);
+            }
+
+            groupLabels.forEach((label, index) => {
+                const hex = groupColors[index];
+                const key = `c-${label}`; 
+
+                colorDefinitions[key] = { hex: hex, name: `${label}組`, label: label };
+                cssRules.push(`.${key} { border-color: ${hex} !important; border-style: solid !important; }`);
+
+                const dot = document.createElement('div');
+                dot.className = 'color-dot';
+                dot.style.backgroundColor = hex;
+                dot.innerText = label; 
+                dot.onclick = () => selColor(dot, key);
+                selector.appendChild(dot);
+            });
+
+            document.getElementById('generated-group-css').innerHTML = cssRules.join('\n');
+        }
+
+        window.onload = () => { 
+            initColorSystem(); 
+            buildClassroom(); 
+            loadSavedData(); 
         };
 
-        window.onload = () => { buildClassroom(); loadSavedData(); };
+        function toggleLockMode(btn) {
+            isLockMode = !isLockMode;
+            const resetBtn = document.querySelector('.btn-reset'); 
+
+            if (isLockMode) {
+                btn.classList.add('active');
+                btn.innerText = "結束鎖定模式";
+                document.body.classList.add('lock-mode');
+                if(resetBtn) resetBtn.innerText = "取消標記";
+            } else {
+                btn.classList.remove('active');
+                btn.innerText = "座位鎖定模式";
+                document.body.classList.remove('lock-mode');
+                if(resetBtn) resetBtn.innerText = "全部重置";
+            }
+        }
+
+        function switchLayout(newMode) {
+            if (newMode === currentLayout) return;
+            returnToPool(); 
+            currentLayout = newMode;
+            buildClassroom();
+            saveAll();
+        }
+
+        function buildClassroom() {
+            const roomEl = document.getElementById('classroom');
+            roomEl.innerHTML = '';
+            roomEl.classList.remove('classroom-grid', 'standard-grid');
+            
+            if (currentLayout === 'group') {
+                roomEl.classList.add('classroom-grid');
+                for (let i = 0; i < 6; i++) {
+                    const pod = document.createElement('div'); pod.className = 'group-pod';
+                    for (let r = 0; r < 3; r++) {
+                        const s1 = createSlot(`G${i+1}-R${r}-S0`); pod.appendChild(s1);
+                        if (r === 0) {
+                            const t = document.createElement('div'); t.className = 'center-table';
+                            t.innerText = tableNames[i];
+                            pod.appendChild(t);
+                        }
+                        const s2 = createSlot(`G${i+1}-R${r}-S1`); pod.appendChild(s2);
+                    }
+                    roomEl.appendChild(pod);
+                }
+            } else {
+                roomEl.classList.add('standard-grid');
+                for (let r = 1; r <= 6; r++) {
+                    for (let c = 1; c <= 6; c++) {
+                        const container = document.createElement('div');
+                        container.className = 'standard-seat-container';
+                        const slot = createSlot(`STD-R${r}-C${c}`);
+                        container.appendChild(slot);
+                        roomEl.appendChild(container);
+                    }
+                }
+            }
+        }
+
+        function createSlot(posId) {
+            const s = document.createElement('div'); s.className = 'seat-slot';
+            s.dataset.pos = posId; 
+            s.innerHTML = '<span class="seat-slot-text">空位</span>';
+            s.onclick = handleSeatClick; s.ondragover = (e) => e.preventDefault(); s.ondrop = handleDrop;
+            return s;
+        }
+
+        function autoFitText(el) {
+            if (!el) return;
+            el.style.fontSize = '16px'; 
+            let fontSize = 16;
+            while ( (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) && fontSize > 9 ) {
+                fontSize--;
+                el.style.fontSize = fontSize + 'px';
+            }
+        }
+
+        function toggleGroupInput() {
+            const mode = document.querySelector('input[name="groupMode"]:checked').value;
+            const sizeInput = document.getElementById('groupSizeInput');
+            const countInput = document.getElementById('groupCountInput');
+            const unitLabel = document.getElementById('unitLabel');
+
+            if (mode === 'bySize') {
+                sizeInput.style.display = 'block';
+                countInput.style.display = 'none';
+                unitLabel.innerText = '人/組';
+            } else {
+                sizeInput.style.display = 'none';
+                countInput.style.display = 'block';
+                unitLabel.innerText = '組';
+            }
+        }
 
         function validateModalState() {
             const girlVal = document.getElementById('girlRangeInput').value.trim();
             const boyVal = document.getElementById('boyRangeInput').value.trim();
             const confirmBtn = document.querySelector('.btn-confirm');
-            
-            if (girlVal === '' && boyVal === '') {
-                confirmBtn.disabled = true;
-            } else {
-                confirmBtn.disabled = false;
-            }
+            confirmBtn.disabled = (girlVal === '' && boyVal === '');
         }
 
         function toggleGenderSettings(checkbox) {
@@ -450,7 +629,6 @@
                 document.getElementById('girlRangeInput').value = genderConfig.girlStr || '';
                 document.getElementById('boyRangeInput').value = genderConfig.boyStr || '';
                 document.getElementById('templateSwitch').checked = genderConfig.isTemplate || false;
-                
                 validateModalState();
             } else {
                 genderConfig.active = false;
@@ -462,7 +640,6 @@
         function toggleTemplate(switchBtn) {
             const girlInput = document.getElementById('girlRangeInput');
             const boyInput = document.getElementById('boyRangeInput');
-            
             if(switchBtn.checked) {
                 girlInput.value = "1-16";
                 boyInput.value = "26-44";
@@ -478,9 +655,7 @@
             if (switchBtn.checked) {
                 const g = document.getElementById('girlRangeInput').value;
                 const b = document.getElementById('boyRangeInput').value;
-                if (g !== "1-16" || b !== "26-44") {
-                    switchBtn.checked = false;
-                }
+                if (g !== "1-16" || b !== "26-44") switchBtn.checked = false;
             }
             validateModalState();
         }
@@ -553,9 +728,7 @@
             const name = document.getElementById('classNameInput').value || '班級';
             document.getElementById('classLabelDisplay').innerText = name;
             const groupTitle = document.getElementById('groupListTitleText');
-            if (groupTitle) {
-                groupTitle.innerText = `分組名單總覽 (${name})`;
-            }
+            if (groupTitle) groupTitle.innerText = `分組名單總覽 (${name})`;
         }
 
         function updatePoolState() {
@@ -564,66 +737,149 @@
                 pool.innerText = '標籤待分配區';
             } else {
                 Array.from(pool.childNodes).forEach(node => {
-                    if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') {
-                        pool.removeChild(node);
-                    }
+                    if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
                 });
             }
         }
 
         function checkGenBtnLock() {
             const hasTags = document.querySelectorAll('.student-tag').length > 0;
-            const btn = document.getElementById('genBtn');
-            btn.disabled = hasTags;
+            document.getElementById('genBtn').disabled = hasTags;
         }
 
         function fullRandomAndGroup() {
+            const mode = document.querySelector('input[name="groupMode"]:checked').value;
             const pool = document.getElementById('student-pool');
             const poolTags = Array.from(pool.querySelectorAll('.student-tag'));
-            const allSlots = Array.from(document.querySelectorAll('.seat-slot'));
+            
+            const allSlots = Array.from(document.querySelectorAll('.seat-slot')).filter(s => !s.classList.contains('locked'));
             const emptySlots = allSlots.filter(s => !s.querySelector('.student-tag'));
-            const occupiedCount = allSlots.length - emptySlots.length;
-            if (poolTags.length === 0 && occupiedCount < 2) return; 
+            
+            if (poolTags.length > 0) {
+                poolTags.sort(() => Math.random() - 0.5);
+                Array.from(pool.childNodes).forEach(node => {
+                    if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
+                });
 
-            poolTags.sort(() => Math.random() - 0.5);
+                poolTags.forEach((tag, index) => {
+                    if (index < emptySlots.length) {
+                        emptySlots[index].innerHTML = '';
+                        emptySlots[index].appendChild(tag);
+                        setTimeout(() => autoFitText(tag), 0);
+                    } else {
+                        pool.appendChild(tag);
+                        tag.style.fontSize = ''; 
+                    }
+                });
+            }
 
-            Array.from(pool.childNodes).forEach(node => {
-                if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
-            });
+            const finalOccupiedSlots = Array.from(document.querySelectorAll('.seat-slot'))
+                .filter(s => s.querySelector('.student-tag') && !s.classList.contains('locked'));
+            
+            const totalPeople = finalOccupiedSlots.length;
+            
+            if (totalPeople < 1) return;
 
-            poolTags.forEach((tag, index) => {
-                if (index < emptySlots.length) {
-                    emptySlots[index].innerHTML = '';
-                    emptySlots[index].appendChild(tag);
+            let finalGroupsCount = 0;
+            let distributeRemainder = false;
+            let baseSize = 0;
+            let remainder = 0;
+
+            if (mode === 'bySize') {
+                let desiredSize = parseInt(document.getElementById('groupSizeInput').value);
+                if (isNaN(desiredSize)) desiredSize = 2;
+                if (desiredSize < 2) desiredSize = 2;
+                if (desiredSize > 18) desiredSize = 18;
+                document.getElementById('groupSizeInput').value = desiredSize; 
+
+                let baseGroups = Math.floor(totalPeople / desiredSize);
+                remainder = totalPeople % desiredSize;
+                
+                if (remainder > 0) {
+                    if (baseGroups === 0) {
+                        finalGroupsCount = 1; 
+                        distributeRemainder = false;
+                    } else {
+                        let userChoice = confirm(`目前模式：每組 ${desiredSize} 人\n計算結果：完整 ${baseGroups} 組，剩餘 ${remainder} 人\n\n請問是否將剩餘 ${remainder} 人「平均加入」現有的組別中？\n\n【確定】加入現有組別（${baseGroups}組，人數變多）\n【取消】讓他們自成一組（共 ${baseGroups + 1} 組）`);
+                        if (userChoice) {
+                            distributeRemainder = true;
+                            finalGroupsCount = baseGroups;
+                        } else {
+                            distributeRemainder = false;
+                            finalGroupsCount = baseGroups + 1;
+                        }
+                    }
                 } else {
-                    pool.appendChild(tag);
+                    finalGroupsCount = baseGroups;
+                    distributeRemainder = false;
                 }
-            });
+                baseSize = desiredSize;
 
-            const finalOccupiedSlots = Array.from(document.querySelectorAll('.seat-slot')).filter(s => s.querySelector('.student-tag'));
-            if (finalOccupiedSlots.length < 2) { updatePoolState(); saveAll(); return; }
+            } else {
+                let desiredCount = parseInt(document.getElementById('groupCountInput').value);
+                if (isNaN(desiredCount)) desiredCount = 2;
+                if (desiredCount < 2) desiredCount = 2;
+                if (desiredCount > 18) desiredCount = 18;
+                if (desiredCount > totalPeople) {
+                    alert(`人數不足！總人數只有 ${totalPeople} 人，無法分成 ${desiredCount} 組。`);
+                    document.getElementById('groupCountInput').value = totalPeople > 18 ? 18 : (totalPeople < 2 ? 2 : totalPeople);
+                    return;
+                }
+                document.getElementById('groupCountInput').value = desiredCount;
+
+                finalGroupsCount = desiredCount;
+                baseSize = Math.floor(totalPeople / desiredCount);
+                remainder = totalPeople % desiredCount;
+                distributeRemainder = true; 
+            }
+
+            if (finalGroupsCount > 18) {
+                alert(`無法執行！\n計算結果需要 ${finalGroupsCount} 組，但系統限制最多 18 組。\n請調整設定。`);
+                return;
+            }
 
             finalOccupiedSlots.forEach(s => {
                 Array.from(s.classList).forEach(c => { if(c.startsWith('c-')) s.classList.remove(c); });
             });
 
-            const colorKeys = Object.keys(colorDefinitions);
-            let colorIndex = 0;
-            let i = 0;
+            for (let i = finalOccupiedSlots.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [finalOccupiedSlots[i], finalOccupiedSlots[j]] = [finalOccupiedSlots[j], finalOccupiedSlots[i]];
+            }
 
-            while (i < finalOccupiedSlots.length) {
-                const currentColor = colorKeys[colorIndex % colorKeys.length];
-                let groupSize = 2;
-                if ((finalOccupiedSlots.length - i) === 3) groupSize = 3;
-                for (let j = 0; j < groupSize; j++) {
-                    if (finalOccupiedSlots[i + j]) finalOccupiedSlots[i + j].classList.add(currentColor);
+            const colorKeys = Object.keys(colorDefinitions);
+            let slotIndex = 0;
+
+            for (let i = 0; i < finalGroupsCount; i++) {
+                let currentGroupSize;
+
+                if (mode === 'bySize') {
+                    if (distributeRemainder) {
+                        currentGroupSize = baseSize + (i < remainder ? 1 : 0);
+                    } else {
+                        if (remainder > 0 && i === finalGroupsCount - 1) {
+                            currentGroupSize = remainder;
+                        } else {
+                            currentGroupSize = baseSize;
+                        }
+                        if (totalPeople < baseSize) currentGroupSize = totalPeople; 
+                    }
+                } else {
+                    currentGroupSize = baseSize + (i < remainder ? 1 : 0);
                 }
-                i += groupSize;
-                colorIndex++;
+
+                const currentColor = colorKeys[i % colorKeys.length];
+
+                for (let k = 0; k < currentGroupSize; k++) {
+                    if (finalOccupiedSlots[slotIndex]) {
+                        finalOccupiedSlots[slotIndex].classList.add(currentColor);
+                        slotIndex++;
+                    }
+                }
             }
 
             updatePoolState(); updateStats(); saveAll();
-            alert("已填滿空位並完成自動分組！");
+            alert(`已完成隨機分組！(共 ${totalPeople} 人，分為 ${finalGroupsCount} 組)`);
         }
 
         function selColor(el, color) {
@@ -647,6 +903,29 @@
 
         function handleSeatClick(e) {
             const slot = e.currentTarget;
+            
+            if (isLockMode) {
+                if (slot.classList.contains('locked')) {
+                    slot.classList.remove('locked');
+                    slot.innerHTML = '<span class="seat-slot-text">空位</span>';
+                } else {
+                    const tag = slot.querySelector('.student-tag');
+                    if (tag) {
+                        tag.style.fontSize = ''; 
+                        document.getElementById('student-pool').appendChild(tag);
+                    }
+                    slot.classList.add('locked');
+                    slot.innerHTML = ''; 
+                    Array.from(slot.classList).forEach(c => { if(c.startsWith('c-')) slot.classList.remove(c); });
+                }
+                updatePoolState();
+                updateStats();
+                saveAll();
+                return;
+            }
+
+            if (slot.classList.contains('locked')) return;
+
             if (activeColor !== "none") {
                 Array.from(slot.classList).forEach(c => { if(c.startsWith('c-')) slot.classList.remove(c); });
                 slot.classList.add(activeColor); saveAll(); return;
@@ -655,15 +934,9 @@
                 saveAll(); return;
             }
             if (slot.querySelector('.student-tag')) return;
-            
-            // 建立輸入框並確保聚焦
             const input = document.createElement('input');
             input.type = 'text'; input.className = 'seat-input'; input.placeholder = '座號/姓名';
-            slot.innerHTML = ''; slot.appendChild(input); 
-            
-            // 延遲聚焦以適應 iOS 鍵盤彈出
-            setTimeout(() => input.focus(), 50);
-
+            slot.innerHTML = ''; slot.appendChild(input); input.focus();
             let composing = false;
             input.addEventListener('compositionstart', () => composing = true);
             input.addEventListener('compositionend', () => composing = false);
@@ -684,11 +957,21 @@
             });
             if (found) {
                 if (found.parentElement.classList.contains('seat-slot')) resetSlot(found.parentElement);
-                slot.innerHTML = ''; slot.appendChild(found); updateStats(); saveAll();
+                slot.innerHTML = ''; slot.appendChild(found); 
+                setTimeout(() => autoFitText(found), 0); 
+                updateStats(); saveAll();
             } else resetSlot(slot);
         }
 
-        function resetSlot(s) { s.innerHTML = '<span class="seat-slot-text">空位</span>'; updatePoolState(); }
+        function resetSlot(s) { 
+            const tag = s.querySelector('.student-tag');
+            if (tag) {
+                tag.style.fontSize = ''; 
+                document.getElementById('student-pool').appendChild(tag);
+            }
+            s.innerHTML = '<span class="seat-slot-text">空位</span>'; 
+            updatePoolState(); 
+        }
         
         function updateStats() {
             let t=0, g=0, b=0;
@@ -703,17 +986,16 @@
             checkGenBtnLock();
         }
 
-        // --- 核心互動：建立標籤 (包含點選、雙擊、長按邏輯) ---
         function createTag(text, id, container) {
             const tag = document.createElement('div');
             tag.className = `student-tag ${getGenderColor(text)}`;
-            tag.id = `TAG-${id}`; 
-            tag.draggable = true; 
-            tag.innerText = text;
+            tag.id = `TAG-${id}`; tag.draggable = true; tag.innerText = text;
             tag.ondragstart = (e) => e.dataTransfer.setData("text", e.target.id);
             
-            // 執行雙擊動作的函式
-            const doDoubleClickAction = () => {
+            tag.style.fontSize = ''; 
+
+            tag.ondblclick = (e) => {
+                e.stopPropagation();
                 const pool = document.getElementById('student-pool');
                 const parent = tag.parentElement;
                 if (parent && parent.classList.contains('seat-slot')) {
@@ -721,67 +1003,22 @@
                         if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
                     });
                     pool.appendChild(tag);
+                    tag.style.fontSize = ''; 
                     resetSlot(parent);
                     updateStats();
                     saveAll();
                 }
             };
-
-            // 電腦版雙擊
-            tag.ondblclick = (e) => {
-                e.stopPropagation();
-                doDoubleClickAction();
-            };
-            
-            // 電腦版右鍵刪除
             tag.oncontextmenu = (e) => {
                 e.preventDefault();
-                deleteTagLogic(tag, text);
+                if (confirm(`確定要刪除「${text}」嗎？`)) {
+                    const parent = tag.parentElement;
+                    tag.remove();
+                    if(parent && parent.classList.contains('seat-slot')) resetSlot(parent);
+                    updatePoolState(); updateStats(); saveAll();
+                }
             };
-
-            // --- iPad/手機 觸控邏輯 (長按刪除 + 模擬雙擊) ---
-            let touchTimer = null;
-            let lastTapTime = 0;
-
-            tag.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 1) {
-                    // 長按計時器 (1秒後刪除)
-                    touchTimer = setTimeout(() => {
-                        e.preventDefault(); 
-                        deleteTagLogic(tag, text);
-                    }, 1000); 
-                }
-            }, {passive: false});
-
-            tag.addEventListener('touchend', (e) => {
-                // 清除長按計時器
-                if(touchTimer) clearTimeout(touchTimer);
-                
-                // 模擬雙擊判定 (Double Tap)
-                const currentTime = new Date().getTime();
-                const tapLength = currentTime - lastTapTime;
-                
-                // 300ms 內的第二次點擊視為雙擊
-                if (tapLength < 300 && tapLength > 0) {
-                    e.preventDefault(); // 防止縮放
-                    doDoubleClickAction();
-                }
-                lastTapTime = currentTime;
-            });
-
-            tag.addEventListener('touchmove', () => { if(touchTimer) clearTimeout(touchTimer); });
-
             container.appendChild(tag); updatePoolState(); return tag;
-        }
-
-        // 獨立出的刪除邏輯
-        function deleteTagLogic(tag, text) {
-            if (confirm(`確定要刪除「${text}」嗎？`)) {
-                const parent = tag.parentElement;
-                tag.remove();
-                if(parent && parent.classList.contains('seat-slot')) resetSlot(parent);
-                updatePoolState(); updateStats(); saveAll();
-            }
         }
 
         function handleGenerate() {
@@ -796,47 +1033,69 @@
         function randomDistribute() {
             const pool = document.getElementById('student-pool');
             const tagsInPool = Array.from(pool.children);
-            const tagsInSeats = document.querySelectorAll('.seat-slot .student-tag');
-            if (tagsInPool.length === 0 && tagsInSeats.length === 0) return;
-
-            document.querySelectorAll('.seat-slot').forEach(s => {
-                const tag = s.querySelector('.student-tag'); if (tag) pool.appendChild(tag); resetSlot(s);
+            const allSlots = Array.from(document.querySelectorAll('.seat-slot')).filter(s => !s.classList.contains('locked'));
+            
+            allSlots.forEach(s => {
+                const tag = s.querySelector('.student-tag'); 
+                if (tag) { pool.appendChild(tag); tag.style.fontSize = ''; } 
+                s.innerHTML = '<span class="seat-slot-text">空位</span>';
             });
+
             Array.from(pool.childNodes).forEach(node => {
                 if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
             });
-            let tags = Array.from(pool.children), slots = Array.from(document.querySelectorAll('.seat-slot'));
-            tags.sort(() => Math.random() - 0.5); slots.sort(() => Math.random() - 0.5);
-            for (let i = 0; i < Math.min(tags.length, slots.length); i++) {
-                slots[i].innerHTML = ''; slots[i].appendChild(tags[i]);
+
+            let tags = Array.from(pool.children);
+            
+            tags.sort(() => Math.random() - 0.5); 
+            allSlots.sort(() => Math.random() - 0.5);
+            
+            for (let i = 0; i < Math.min(tags.length, allSlots.length); i++) {
+                allSlots[i].innerHTML = ''; 
+                allSlots[i].appendChild(tags[i]);
+                setTimeout(() => autoFitText(tags[i]), 0); 
             }
             updatePoolState(); updateStats(); saveAll();
         }
 
         function returnToPool() {
             const pool = document.getElementById('student-pool');
-            const seatedTags = document.querySelectorAll('.seat-slot .student-tag');
-            if (seatedTags.length === 0) return;
-
+            const slots = document.querySelectorAll('.seat-slot');
+            
             Array.from(pool.childNodes).forEach(node => {
                 if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
             });
-            document.querySelectorAll('.seat-slot').forEach(s => {
+
+            slots.forEach(s => {
                 const tag = s.querySelector('.student-tag');
-                if (tag) { pool.appendChild(tag); resetSlot(s); }
+                if (tag) { 
+                    pool.appendChild(tag); 
+                    tag.style.fontSize = ''; 
+                    s.innerHTML = ''; 
+                    if(!s.classList.contains('locked')) {
+                        s.innerHTML = '<span class="seat-slot-text">空位</span>';
+                    }
+                }
             });
             updatePoolState(); updateStats(); saveAll();
         }
 
         function handleDrop(e) {
-            e.preventDefault(); const id = e.dataTransfer.getData("text"), el = document.getElementById(id), target = e.currentTarget;
+            e.preventDefault(); 
+            if (e.currentTarget.classList.contains('locked')) return;
+
+            const id = e.dataTransfer.getData("text"), el = document.getElementById(id), target = e.currentTarget;
             const pool = document.getElementById('student-pool');
+            
             if (target.id === 'student-pool') {
                 Array.from(pool.childNodes).forEach(node => {
                     if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
                 });
-                if (el.parentElement.classList.contains('seat-slot')) resetSlot(el.parentElement);
+                if (el.parentElement.classList.contains('seat-slot')) {
+                    el.parentElement.innerHTML = '<span class="seat-slot-text">空位</span>';
+                }
                 target.appendChild(el);
+                el.style.fontSize = ''; 
             } else if (target.classList.contains('seat-slot')) {
                 const old = target.querySelector('.student-tag');
                 if (old) {
@@ -844,9 +1103,14 @@
                         if(node.nodeType === Node.TEXT_NODE && node.textContent === '標籤待分配區') pool.removeChild(node);
                     });
                     pool.appendChild(old);
+                    old.style.fontSize = ''; 
                 }
-                if (el.parentElement.classList.contains('seat-slot')) resetSlot(el.parentElement);
-                target.innerHTML = ''; target.appendChild(el);
+                if (el.parentElement.classList.contains('seat-slot')) {
+                    el.parentElement.innerHTML = '<span class="seat-slot-text">空位</span>';
+                }
+                target.innerHTML = ''; 
+                target.appendChild(el);
+                setTimeout(() => autoFitText(el), 0); 
             }
             updatePoolState(); updateStats(); saveAll();
         }
@@ -869,14 +1133,12 @@
             const container = document.getElementById('group-list-content');
             const mainContainer = document.getElementById('group-result-container');
             container.innerHTML = '';
-            
             mainContainer.style.display = 'block';
 
             const imgBtn = document.querySelector('.btn-img');
 
             if (Object.keys(groups).length === 0) {
                 if(imgBtn) imgBtn.disabled = true;
-
                 container.innerHTML = '<div class="empty-group-hint">目前尚未建立顏色分組（無法匯出圖檔，僅可匯出 Excel 紀錄）</div>';
                 return;
             }
@@ -907,21 +1169,24 @@
                 className: document.getElementById('classNameInput').value,
                 names: document.getElementById('rawNames').value,
                 pool: Array.from(document.getElementById('student-pool').children).map(t => t.innerText),
-                pos: {}, borders: {}, view: currentView,
-                genderConfig: genderConfig 
+                pos: {}, borders: {}, locks: {}, view: currentView,
+                genderConfig: genderConfig,
+                layout: currentLayout 
             };
             document.querySelectorAll('.seat-slot').forEach(s => {
                 const t = s.querySelector('.student-tag'); if (t) data.pos[s.dataset.pos] = t.innerText;
                 const bc = Array.from(s.classList).find(c => c.startsWith('c-')); if (bc) data.borders[s.dataset.pos] = bc;
+                if (s.classList.contains('locked')) data.locks[s.dataset.pos] = true; 
             });
             updateClassDisplay();
-            localStorage.setItem('SeatingData_Final_VisualUpdate', JSON.stringify(data));
+            localStorage.setItem('SeatingData_MultiLayout', JSON.stringify(data));
             renderGroupList();
         }
 
         function loadSavedData() {
-            const saved = localStorage.getItem('SeatingData_Final_VisualUpdate'); 
+            const saved = localStorage.getItem('SeatingData_MultiLayout'); 
             if (!saved) {
+                buildClassroom();
                 renderGroupList();
                 return;
             }
@@ -929,22 +1194,48 @@
             document.getElementById('classNameInput').value = data.className || '';
             document.getElementById('rawNames').value = data.names || '';
             
+            if (data.layout) {
+                currentLayout = data.layout;
+                document.getElementById('layoutSelect').value = currentLayout;
+            }
+            buildClassroom(); 
+
             if(data.genderConfig) {
                 genderConfig = data.genderConfig;
                 document.getElementById('genderToggleCheckbox').checked = genderConfig.active;
             }
 
             if (data.view === "teacher") { currentView = "student"; toggleView(); }
+            
             const pool = document.getElementById('student-pool'); pool.innerHTML = '';
             if (data.pool) data.pool.forEach((n, i) => createTag(n, `P-${i}-${Date.now()}`, pool));
+            
             Object.keys(data.pos).forEach(p => {
                 const s = document.querySelector(`[data-pos="${p}"]`);
-                const t = createTag(data.pos[p], `S-${p}-${Date.now()}`, document.body);
-                if (s) { s.innerHTML = ''; s.appendChild(t); }
+                if (s) { 
+                    const t = createTag(data.pos[p], `S-${p}-${Date.now()}`, document.body);
+                    s.innerHTML = ''; s.appendChild(t); 
+                    setTimeout(() => autoFitText(t), 0);
+                } else {
+                    createTag(data.pos[p], `LOST-${p}-${Date.now()}`, pool);
+                }
             });
+            
             if (data.borders) Object.keys(data.borders).forEach(p => {
-                const s = document.querySelector(`[data-pos="${p}"]`); if (s) s.classList.add(data.borders[p]);
+                const s = document.querySelector(`[data-pos="${p}"]`);
+                if (s && colorDefinitions[data.borders[p]]) {
+                     s.classList.add(data.borders[p]);
+                }
             });
+
+            if (data.locks) Object.keys(data.locks).forEach(p => {
+                const s = document.querySelector(`[data-pos="${p}"]`);
+                if (s) {
+                    s.classList.add('locked');
+                    s.innerHTML = ''; 
+                }
+            });
+
             updateStats(); renderGroupList();
             updateClassDisplay();
         }
@@ -967,31 +1258,24 @@
             input.value = ''; updateStats(); saveAll();
         }
 
-        function buildClassroom() {
-             const roomEl = document.getElementById('classroom'); roomEl.innerHTML = '';
-            for (let i = 0; i < 6; i++) {
-                const pod = document.createElement('div'); pod.className = 'group-pod';
-                for (let r = 0; r < 3; r++) {
-                    const s1 = createSlot(i+1, r, 0); pod.appendChild(s1);
-                    if (r === 0) {
-                        const t = document.createElement('div'); t.className = 'center-table';
-                        t.innerText = tableNames[i];
-                        pod.appendChild(t);
-                    }
-                    const s2 = createSlot(i+1, r, 1); pod.appendChild(s2);
+        function fullReset() { 
+            if (isLockMode) {
+                if (confirm("確定要清除所有「打叉」鎖定標記嗎？(不會影響學生座位)")) {
+                    document.querySelectorAll('.seat-slot.locked').forEach(s => {
+                        s.classList.remove('locked');
+                        if (!s.querySelector('.student-tag')) {
+                            s.innerHTML = '<span class="seat-slot-text">空位</span>';
+                        }
+                    });
+                    saveAll();
                 }
-                roomEl.appendChild(pod);
+            } else {
+                if (confirm("完全重置？這將清除所有資料與設定。")) { 
+                    localStorage.removeItem('SeatingData_MultiLayout'); 
+                    location.reload(); 
+                } 
             }
         }
-
-        function createSlot(g, r, side) {
-            const s = document.createElement('div'); s.className = 'seat-slot';
-            s.dataset.pos = `G${g}-R${r}-S${side}`; s.innerHTML = '<span class="seat-slot-text">空位</span>';
-            s.onclick = handleSeatClick; s.ondragover = (e) => e.preventDefault(); s.ondrop = handleDrop;
-            return s;
-        }
-
-        function fullReset() { if (confirm("完全重置？")) { localStorage.removeItem('SeatingData_Final_VisualUpdate'); location.reload(); } }
         function clearInput() { document.getElementById('rawNames').value = ''; saveAll(); }
         function clearTags() {
             const hasTags = document.querySelectorAll('.student-tag').length > 0;
@@ -1008,9 +1292,11 @@
             const name = document.getElementById('classNameInput').value || '班級';
             const isTeacher = document.getElementById('export-area').classList.contains('rotate-180');
             const viewName = isTeacher ? '教師版' : '學生版';
+            const layoutName = currentLayout === 'group' ? '分組' : '一般';
+            
             html2canvas(document.getElementById('export-area'), { backgroundColor: "#f5f6fa", scale: 2 }).then(canvas => {
                 const link = document.createElement('a'); 
-                link.download = `${name}_座位表_${viewName}.png`;
+                link.download = `${name}_${layoutName}座位表_${viewName}.png`;
                 link.href = canvas.toDataURL(); link.click();
             });
         }
@@ -1031,7 +1317,6 @@
         function exportGroupExcel() {
             const className = document.getElementById('classNameInput').value || "班級";
             const rows = [];
-
             const getTagType = (tag) => {
                 if (!tag) return "";
                 if (tag.classList.contains('is-girl')) return "女生";
@@ -1042,23 +1327,35 @@
             document.querySelectorAll('.seat-slot').forEach(slot => {
                 const tag = slot.querySelector('.student-tag');
                 const colorClass = Array.from(slot.classList).find(c => colorDefinitions[c]);
+                const isLocked = slot.classList.contains('locked');
                 const seatID = slot.dataset.pos;
-                
-                const parts = seatID.split('-'); 
-                const groupIdx = parseInt(parts[0].substring(1)) - 1;
-                const sideIdx = parseInt(parts[2].substring(1));
-                const tableName = tableNames[groupIdx];
-                const sideName = sideIdx === 0 ? "左側" : "右側";
-                const rowName = parseInt(parts[1].substring(1)) + 1;
-                const readableSeat = `${tableName} ${sideName}第${rowName}位`;
+                let readableSeat = "";
 
-                if (tag || colorClass) {
+                if (seatID.startsWith('G')) {
+                    const parts = seatID.split('-');
+                    const groupIdx = parseInt(parts[0].substring(1)) - 1;
+                    const rowName = parseInt(parts[1].substring(1)) + 1;
+                    const sideName = parseInt(parts[2].substring(1)) === 0 ? "左" : "右";
+                    readableSeat = `${tableNames[groupIdx]} ${sideName}側第${rowName}位`;
+                } else if (seatID.startsWith('STD')) {
+                    const parts = seatID.split('-');
+                    const r = parts[1].substring(1);
+                    const c = parts[2].substring(1);
+                    readableSeat = `第${r}排 第${c}個`;
+                }
+
+                if (tag || colorClass || isLocked) {
+                    
+                    let statusStr = "已入座";
+                    if (!tag) statusStr = "空位";
+                    if (isLocked) statusStr += " (鎖定)";
+
                     rows.push({
                         "班級名稱": className,
-                        "狀態": "已入座",
+                        "狀態": statusStr,
                         "標籤屬性": getTagType(tag),
                         "組別": colorClass ? colorDefinitions[colorClass].name : "未分組",
-                        "姓名": tag ? tag.innerText : "(空位)", 
+                        "姓名": tag ? tag.innerText : (isLocked ? "(鎖定空位)" : "(空位)"), 
                         "座位說明": readableSeat,
                         "系統座標": seatID 
                     });
@@ -1085,19 +1382,56 @@
 
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(rows);
-            
-            ws['!cols'] = [
-                { wch: 15 }, 
-                { wch: 10 }, 
-                { wch: 10 }, 
-                { wch: 12 }, 
-                { wch: 15 }, 
-                { wch: 20 }, 
-                { wch: 15 } 
-            ];
-            
+            ws['!cols'] = [ { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 } ];
             XLSX.utils.book_append_sheet(wb, ws, "座位與分組紀錄");
             XLSX.writeFile(wb, `${className}_分組名單.xlsx`);
+        }
+
+        // 新增：處理單純名單匯入 (TXT, CSV, XLSX)
+        function importNameList(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            const name = file.name.toLowerCase();
+
+            if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    // 讀取所有儲存格內容（不考慮標題列，視為純清單）
+                    const json = XLSX.utils.sheet_to_json(sheet, {header: 1}); 
+                    let names = [];
+                    json.forEach(row => {
+                        row.forEach(cell => {
+                            if (cell && (typeof cell === 'string' || typeof cell === 'number')) {
+                                names.push(cell);
+                            }
+                        });
+                    });
+                    
+                    if(names.length > 0) {
+                        document.getElementById('rawNames').value = names.join('\n');
+                        saveAll();
+                        alert(`已成功匯入 ${names.length} 筆名單資料！`);
+                    } else {
+                        alert("檔案中找不到有效的文字資料。");
+                    }
+                    input.value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                // 預設當作文字檔處理
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    document.getElementById('rawNames').value = text;
+                    saveAll();
+                    alert("名單已成功匯入！");
+                    input.value = '';
+                };
+                reader.readAsText(file);
+            }
         }
 
         function importFromExcel(input) {
@@ -1113,59 +1447,68 @@
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
                 if(jsonData.length === 0) { alert("Excel 檔案無資料！"); return; }
-
-                if(jsonData[0]['班級名稱']) {
-                    document.getElementById('classNameInput').value = jsonData[0]['班級名稱'];
-                } else if(jsonData[0]['班級']) {
-                    document.getElementById('classNameInput').value = jsonData[0]['班級'];
+                if(jsonData[0]['班級名稱']) document.getElementById('classNameInput').value = jsonData[0]['班級名稱'];
+                
+                const firstCoord = jsonData[0]['系統座標'];
+                if (firstCoord && firstCoord.startsWith('STD') && currentLayout !== 'standard') {
+                    if(confirm("偵測到匯入資料為「一般教室」配置，是否切換？")) {
+                        document.getElementById('layoutSelect').value = 'standard';
+                        switchLayout('standard');
+                    }
+                } else if (firstCoord && firstCoord.startsWith('G') && currentLayout !== 'group') {
+                    if(confirm("偵測到匯入資料為「分組教室」配置，是否切換？")) {
+                        document.getElementById('layoutSelect').value = 'group';
+                        switchLayout('group');
+                    }
                 }
 
                 const pool = document.getElementById('student-pool');
                 pool.innerHTML = ''; 
-                
                 document.querySelectorAll('.seat-slot').forEach(s => {
                     s.innerHTML = '<span class="seat-slot-text">空位</span>';
                     Array.from(s.classList).forEach(c => { if(c.startsWith('c-')) s.classList.remove(c); });
+                    s.classList.remove('locked');
                 });
 
                 let allNames = []; 
-
                 jsonData.forEach(row => {
                     const seatID = row['系統座標'];
                     const name = row['姓名']; 
                     const colorName = row['組別'];
+                    const status = row['狀態']; 
                     
-                    const validName = (name && name.trim() !== "" && name !== "(空位)");
+                    const validName = (name && name.trim() !== "" && name !== "(空位)" && name !== "(鎖定空位)");
                     if(validName) allNames.push(name.trim());
 
-                    if (seatID === 'POOL') {
-                        if (validName) {
-                            createTag(name, `IMP-POOL-${Date.now()}-${Math.random()}`, pool);
-                        }
+                    const isLocked = (status && status.includes('鎖定')) || (name && name.includes('鎖定'));
+
+                    if (seatID === 'POOL' || !seatID) {
+                        if (validName) createTag(name, `IMP-POOL-${Date.now()}-${Math.random()}`, pool);
                     } else {
                         const slot = document.querySelector(`[data-pos="${seatID}"]`);
                         if(slot) {
                             if(validName) {
                                 const tag = createTag(name, `IMP-${Date.now()}-${Math.random()}`, document.body);
-                                slot.innerHTML = '';
-                                slot.appendChild(tag);
+                                slot.innerHTML = ''; slot.appendChild(tag);
+                                setTimeout(() => autoFitText(tag), 0);
                             }
-                            if(colorName && colorName !== "未分組" && colorName !== "未安排座位") {
+                            if(colorName && colorName !== "未分組") {
                                 const colorKey = Object.keys(colorDefinitions).find(k => colorDefinitions[k].name === colorName);
                                 if(colorKey) slot.classList.add(colorKey);
                             }
+
+                            if (isLocked) {
+                                slot.classList.add('locked');
+                                if (!validName) slot.innerHTML = ''; 
+                            }
+
+                        } else {
+                            if (validName) createTag(name, `IMP-LOST-${Date.now()}-${Math.random()}`, pool);
                         }
                     }
                 });
-
-                if(allNames.length > 0) {
-                    document.getElementById('rawNames').value = allNames.join('\n');
-                }
-
-                updatePoolState();
-                updateStats(); 
-                saveAll();     
-                
+                if(allNames.length > 0) document.getElementById('rawNames').value = allNames.join('\n');
+                updatePoolState(); updateStats(); saveAll();     
                 alert(`已成功匯入！共處理 ${jsonData.length} 筆紀錄。`);
                 input.value = ''; 
             };
