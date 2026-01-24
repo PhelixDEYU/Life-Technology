@@ -132,11 +132,11 @@
     function markAttendance(seatId, status, btnElement) {
         
         // --- 設定區：請填入您的 GAS 網址 ---
-        const GAS_URL = "你的_GAS_網址_貼在這裡"; 
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyQ5lHJgPPeavKr8Xmhk1Gx2yr8oPb3vLXU0VzuGARK-mOMrqw1PPwUkX86Kc2cdWqupA/exec"; 
         // ----------------------------------
 
-        if(GAS_URL === "你的_GAS_網址_貼在這裡") {
-            alert("請記得修改程式碼中的 GAS_URL 為您的 Google Apps Script 網址！");
+        if(GAS_URL === "https://script.google.com/macros/s/AKfycbyQ5lHJgPPeavKr8Xmhk1Gx2yr8oPb3vLXU0VzuGARK-mOMrqw1PPwUkX86Kc2cdWqupA/exec") {
+            alert("https://script.google.com/macros/s/AKfycbyQ5lHJgPPeavKr8Xmhk1Gx2yr8oPb3vLXU0VzuGARK-mOMrqw1PPwUkX86Kc2cdWqupA/exec");
             return;
         }
 
