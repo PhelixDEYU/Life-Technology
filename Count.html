@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>課堂點名系統 V38.3 (含課程備註)</title>
+    <title>課堂點名系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -555,7 +555,6 @@
                     }
                 };
 
-                // 修改 3: 產生課表時增加 note 欄位
                 const generateSchedule = () => {
                     const className = `新班級 ${Object.keys(allClasses).length + 1}`;
                     currentClassKey.value = className;
@@ -643,7 +642,9 @@
                                         if(dateMatch) {
                                             const dStr = dateMatch[1].replace(/\//g, '-'); 
                                             if(!dateMap.has(dStr)) {
-                                                let meta = { statusIdx: -1, noteIdx: -1, type: 'normal', holidayReason: '', rescheduledTo: '' };
+                                                let meta = { statusIdx: -1, noteIdx: -1, type: 'normal', holidayReason: '', rescheduledTo: '', note: '' };
+                                                
+                                                // 解析各種標籤
                                                 if(cellStr.includes('[停課')) {
                                                     meta.type = 'holiday';
                                                     const reasonMatch = cellStr.match(/\[停課:(.*?)\]/);
@@ -655,6 +656,11 @@
                                                 } else if(cellStr.includes('[補課')) {
                                                     meta.type = 'makeup';
                                                 }
+
+                                                // 解析備註
+                                                const noteMatch = cellStr.match(/\[備註:(.*?)\]/);
+                                                if(noteMatch) meta.note = noteMatch[1];
+
                                                 dateMap.set(dStr, meta);
                                             }
                                             const meta = dateMap.get(dStr);
@@ -705,8 +711,7 @@
                                             id: Date.now() + sIdx,
                                             date: dStr,
                                             type: meta.type,
-                                            // 備註還原邏輯暫時保留預設，若需完整還原可擴充
-                                            note: '', 
+                                            note: meta.note || '', // 還原備註
                                             holidayReason: meta.holidayReason,
                                             rescheduledTo: meta.rescheduledTo,
                                             isRollCallDone: isDone,
@@ -749,7 +754,6 @@
                                     if(dateCols.length > 0) {
                                         dateCols.forEach((dc, idx) => {
                                             const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
-                                            // 修改 4: 匯入時增加 note
                                             newSessions.push({ id: Date.now() + idx, date: dc.dateStr, type: 'normal', note: '', isRollCallDone: false, records: records });
                                         });
                                     } else {
@@ -758,7 +762,6 @@
                                             let d = new Date(start); d.setDate(start.getDate() + k*7);
                                             const dStr = formatDate(d);
                                             const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
-                                            // 修改 5: 匯入預設時增加 note
                                             newSessions.push({ id: Date.now() + k, date: dStr, type: 'normal', note: '', isRollCallDone: false, records: records });
                                         }
                                     }
@@ -841,6 +844,9 @@
                         if(sess.type === 'holiday') dateLabel += ` [停課:${sess.holidayReason}]`;
                         else if(sess.type === 'rescheduled') dateLabel += ` [調課:${sess.rescheduledTo}]`;
                         else if(sess.type === 'makeup') dateLabel += ` [補課]`;
+                        
+                        // 寫入備註到表頭
+                        if(sess.note) dateLabel += ` [備註:${sess.note}]`;
 
                         header.push(`${dateLabel} 狀態`, `${dateLabel} 備註/評分`);
                     });
@@ -891,6 +897,10 @@
                             if(sess.type === 'holiday') dateLabel += ` [停課:${sess.holidayReason}]`;
                             else if(sess.type === 'rescheduled') dateLabel += ` [調課:${sess.rescheduledTo}]`;
                             else if(sess.type === 'makeup') dateLabel += ` [補課]`;
+                            
+                            // 寫入備註到表頭
+                            if(sess.note) dateLabel += ` [備註:${sess.note}]`;
+
                             header.push(`${dateLabel} 狀態`, `${dateLabel} 備註/評分`); 
                         });
                         const rows = [titleRow, header];
