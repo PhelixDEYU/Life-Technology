@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>課堂點名系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        .no-select { user-select: none; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+        
+        .selected-ring { box-shadow: 0 0 0 3px white, 0 0 0 5px #4f46e5; }
+        .selected-ring-red { box-shadow: 0 0 0 3px white, 0 0 0 5px #ef4444; }
+        .selected-ring-orange { box-shadow: 0 0 0 3px white, 0 0 0 5px #f97316; }
+        .selected-ring-purple { box-shadow: 0 0 0 3px white, 0 0 0 5px #a855f7; }
+
+        .input-transition { transition: all 0.3s ease; }
+        .session-item { transition: all 0.3s ease; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; border: 2px solid #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* --- V38 表頭固定最終修正區 --- */
+        .table-container {
+            position: relative;
+            flex: 1 1 0%;        
+            display: block;      
+            overflow-y: auto;    
+            overflow-x: auto;    
+            height: 0;           
+            background-color: white;
+        }
+
+        thead.sticky-header th {
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            background-color: #f8fafc !important; 
+            box-shadow: inset 0 -1px 0 #e2e8f0;
+        }
+
+        tbody tr td {
+            background-color: #fff;
+        }
+        
+        /* 針對總覽表格的固定 (行列凍結) */
+        /* 修正：移除這裡的強制白色背景，改在 HTML class 中設定，以便讓橘色背景能覆蓋 */
+        .sticky-top-header th { 
+            position: sticky; 
+            top: 0; 
+            z-index: 55; 
+        }
+        .sticky-col-header-1 { position: sticky; left: 0; z-index: 60; }
+        .sticky-col-header-2 { position: sticky; left: 60px; z-index: 60; }
+        .sticky-col-1 { position: sticky; left: 0; z-index: 40; }
+        .sticky-col-2 { position: sticky; left: 60px; z-index: 40; }
+        .sticky-corner-1 { position: sticky; top: 0; left: 0; z-index: 70 !important; }
+        .sticky-corner-2 { position: sticky; top: 0; left: 60px; z-index: 70 !important; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 h-screen overflow-hidden font-sans">
+
+    <div id="app" class="flex h-full">
+
+        <aside class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-xl z-20 flex-shrink-0">
+            <div class="p-4 border-b border-gray-100 bg-slate-800 text-white flex justify-between items-center shrink-0">
+                <div>
+                    <h1 class="text-lg font-bold"><i class="fa-solid fa-clipboard-user mr-2"></i>課堂管理</h1>
+                    <p class="text-slate-400 text-xs">學生出缺席與加扣分</p>
+                </div>
+                <button @click="openSetupModal" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded border border-slate-600 transition shadow flex items-center" title="重設/匯入">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> 重設
+                </button>
+            </div>
+
+            <div class="p-3 bg-gray-50 border-b border-gray-200 flex gap-2">
+                <input type="file" ref="fileInput" class="hidden" accept=".xlsx, .xls, .csv" @change="handleFileUpload">
+                <button @click="triggerFileUpload" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-1.5 rounded transition flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-plus mr-1"></i> 匯入/還原班級
+                </button>
+                <button @click="exportAllClasses" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs py-1.5 rounded transition flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-file-export mr-1"></i> 備份所有紀錄
+                </button>
+            </div>
+
+            <div class="p-3 bg-white border-b border-gray-200" v-if="Object.keys(allClasses).length > 0">
+                <label class="text-xs font-bold text-gray-500 block mb-1">目前班級</label>
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <select v-model="currentClassKey" @change="switchClass" class="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 focus:ring-indigo-500 focus:border-indigo-500 appearance-none font-bold text-gray-700 truncate pr-8">
+                            <option v-for="key in Object.keys(allClasses)" :value="key">{{ key }}</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                    <button @click="deleteCurrentClass" class="bg-red-100 hover:bg-red-200 text-red-600 px-3 rounded border border-red-200 transition" title="刪除此班級">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+            <div v-else class="p-4 text-center text-gray-400 text-xs italic">
+                尚未匯入任何班級
+            </div>
+
+            <div class="p-4 bg-gray-50 border-b border-gray-200 shrink-0">
+                <div class="flex justify-between items-center mb-3">
+                    <button @click="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-full text-gray-600 transition"><i class="fa-solid fa-chevron-left text-xs"></i></button>
+                    <span class="font-bold text-gray-800">{{ calendarHeader }}</span>
+                    <button @click="changeMonth(1)" class="w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-full text-gray-600 transition"><i class="fa-solid fa-chevron-right text-xs"></i></button>
+                </div>
+                <div class="grid grid-cols-7 text-center mb-1">
+                    <span v-for="d in ['日','一','二','三','四','五','六']" class="text-[10px] font-bold text-gray-400">{{ d }}</span>
+                </div>
+                <div class="grid grid-cols-7 gap-1">
+                    <div v-for="n in startDayOffset" :key="'empty'+n"></div>
+                    <div v-for="day in daysInMonth" :key="day.dateStr" @click="handleCalendarClick(day)"
+                         class="h-9 w-9 mx-auto flex items-center justify-center rounded-full text-sm font-bold cursor-pointer transition relative group select-none"
+                         :class="getDayClass(day)">
+                        {{ day.day }}
+                    </div>
+                </div>
+                <div class="mt-3 flex justify-center space-x-2 text-[10px] text-gray-400 flex-wrap">
+                    <span class="flex items-center"><span class="w-2 h-2 bg-indigo-500 rounded-full mr-1"></span>正常上課</span>
+                    <span class="flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-1"></span>停課</span>
+                    <span class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-1"></span>已調課</span>
+                    <span class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span>補課</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 border-b border-gray-200 shrink-0 max-h-40 overflow-y-auto" v-if="abnormalSessions.length > 0">
+                <div class="px-4 py-2 text-xs font-bold text-gray-500 flex justify-between items-center sticky top-0 bg-slate-50 z-10 border-b border-gray-100">
+                    <span><i class="fa-solid fa-circle-exclamation mr-1"></i> 課程異動</span>
+                </div>
+                <ul class="px-4 pb-2 space-y-1 mt-1">
+                    <li v-for="h in abnormalSessions" :key="h.id" 
+        class="flex justify-between items-center text-xs bg-white p-2 rounded border shadow-sm transition group"
+        :class="{
+            'border-red-100 hover:bg-red-50': h.type === 'holiday',
+            'border-orange-100 hover:bg-orange-50': h.type === 'rescheduled',
+            /* 修正：將補課的邊框與互動背景改為綠色 */
+            'border-emerald-100 hover:bg-emerald-50': h.type === 'makeup'
+        }">
+        <div class="flex-1 cursor-pointer" @click="jumpToDate(h.date)">
+            <span class="font-bold text-gray-700">{{ h.date }}</span>
+            <span class="ml-2 font-bold" 
+                  :class="{
+                      'text-red-500': h.type === 'holiday',
+                      'text-orange-500': h.type === 'rescheduled',
+                      /* 修正：將補課文字改為綠色 */
+                      'text-emerald-500': h.type === 'makeup'
+                  }">
+                {{ h.type === 'holiday' ? '停課' : (h.type === 'rescheduled' ? '已調課' : '補課') }}
+            </span>
+        </div>
+        <button v-if="h.type !== 'makeup'" @click="resetToNormal(h)" class="text-gray-400 hover:text-green-600 bg-transparent hover:bg-green-50 rounded px-2 py-1 transition ml-2" title="恢復正常">
+            <i class="fa-solid fa-rotate-left"></i>
+        </button>
+    </li>
+                </ul>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-0 scrollbar-hide bg-white" ref="sessionListContainer">
+                <div class="p-2 bg-gray-100 text-xs font-bold text-gray-500 sticky top-0 border-b border-gray-200 flex justify-between px-4 z-10">
+                    <span>課程列表</span>
+                    <span>{{ sortedSessions.length }} 堂</span>
+                </div>
+                <ul class="divide-y divide-gray-100" v-if="sortedSessions.length > 0">
+                    <li v-for="(session, index) in sortedSessions" 
+                        :key="session.id" 
+                        :ref="(el) => { if(el) sessionRefs[index] = el }"
+                        @click="currentSessionIndex = index"
+                        class="session-item px-4 py-3 cursor-pointer flex justify-between items-center hover:bg-gray-50"
+                        :class="currentSessionIndex === index ? 'bg-indigo-50 border-l-4 border-indigo-500' : 'border-l-4 border-transparent'">
+                        <div class="flex items-center">
+                            <div class="w-8 text-center text-gray-400 font-mono text-xs mr-2">{{ index + 1 }}</div>
+                            <div>
+                                <div class="text-xs font-bold mb-0.5 flex items-center">
+                                    <span :class="{
+                                        'text-gray-800': session.type === 'normal',
+                                        'text-red-500': session.type === 'holiday',
+                                        'text-orange-500': session.type === 'rescheduled',
+                                        'text-purple-600': session.type === 'makeup'
+                                    }">{{ session.date }}</span>
+                                    <span v-if="session.type === 'holiday'" class="ml-2 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">停</span>
+                                    <span v-if="session.type === 'rescheduled'" class="ml-2 text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">調</span>
+                                    <span v-if="session.type === 'makeup'" class="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">補</span>
+                                    <span v-if="(session.type === 'normal' || session.type === 'makeup') && session.isRollCallDone" class="ml-2 text-[10px] bg-cyan-100 text-cyan-600 px-1.5 py-0.5 rounded font-bold">已存</span>
+                                </div>
+                                <div class="text-[10px] text-gray-400">{{ getWeekDayName(session.date) }}</div>
+                            </div>
+                        </div>
+                        <button v-if="session.type === 'normal' || session.type === 'makeup'" @click.stop="deleteSession(session.id)" class="text-gray-300 hover:text-red-500 transition px-2" title="取消上課">
+                            <i class="fa-solid fa-xmark text-sm font-bold"></i>
+                        </button>
+                    </li>
+                </ul>
+                <div v-else class="p-8 text-center text-gray-400 text-sm">
+                    尚無課程
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col h-full relative bg-white overflow-hidden">
+            <header class="bg-white border-b border-gray-200 px-6 py-4 flex flex-col gap-4 shadow-sm z-10 shrink-0">
+                <div class="flex justify-between items-center">
+                    
+                    <div class="flex items-center space-x-6">
+                        <div class="px-4 py-2 bg-yellow-300 text-gray-900 rounded-lg shadow-lg flex items-center border border-yellow-400">
+                            <button @click="showOverviewModal" class="mr-3 bg-white/50 hover:bg-white text-gray-800 p-1.5 rounded transition" title="檢視班級總覽">
+                                <i class="fa-solid fa-table-list"></i>
+                            </button>
+                            <div class="h-6 w-px bg-yellow-500 mr-3"></div>
+
+                            <span class="font-bold text-lg tracking-wide mr-3">{{ currentClassKey || '未選擇班級' }}</span>
+                            <span class="text-xs bg-yellow-100 text-yellow-900 px-2 py-0.5 rounded border border-yellow-200 mr-2 whitespace-nowrap font-bold">共 {{ studentList.length }} 人</span>
+                            <span v-if="currentTeacher" class="text-xs bg-white/50 text-gray-800 px-2 py-0.5 rounded border border-yellow-500/30 whitespace-nowrap font-bold"><i class="fa-solid fa-chalkboard-user mr-1"></i> {{ currentTeacher }}</span>
+                        </div>
+
+                        <div class="flex items-center space-x-4" v-if="currentSession">
+                            <div class="flex items-center bg-gray-100 rounded-lg p-1 shadow-inner">
+                                <button @click="prevSession" :disabled="currentSessionIndex === 0" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow rounded disabled:opacity-30 transition"><i class="fa-solid fa-chevron-left"></i></button>
+                                <span class="px-2 font-bold text-gray-700 w-32 text-center text-sm">第 {{ currentSessionIndex + 1 }} 週</span>
+                                <button @click="nextSession" :disabled="currentSessionIndex === sortedSessions.length - 1" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow rounded disabled:opacity-30 transition"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-xl font-mono font-bold text-indigo-600 leading-tight" :class="{'text-purple-600': currentSession.type === 'makeup'}">
+                                    {{ currentSession.date }} 
+                                    <span v-if="currentSession.type === 'makeup'" class="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded ml-2">補課</span>
+                                </span>
+                                <span class="text-xs text-gray-400 font-medium">{{ getWeekDayName(currentSession.date) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-3" v-if="currentSession">
+                        <div v-if="currentSession.type === 'normal' || currentSession.type === 'makeup'" class="flex items-center bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 group hover:border-indigo-300 transition cursor-pointer">
+                            <label class="text-xs text-indigo-600 font-bold mr-2 cursor-pointer">加扣分級數</label>
+                            <input type="number" v-model.number="globalStep" min="1" max="5" class="w-8 text-center border-b-2 border-indigo-300 bg-transparent focus:outline-none font-bold text-indigo-800 text-lg">
+                        </div>
+
+                        <span v-if="currentSession.type === 'holiday'" class="flex items-center text-red-600 font-bold bg-red-50 px-4 py-1.5 rounded-full text-sm border border-red-100"><i class="fa-solid fa-ban mr-2"></i> {{ currentSession.holidayReason }}</span>
+                        <span v-else-if="currentSession.type === 'rescheduled'" class="flex items-center text-orange-600 font-bold bg-orange-50 px-4 py-1.5 rounded-full text-sm border border-orange-100"><i class="fa-solid fa-arrow-right-from-bracket mr-2"></i> 已調課至 {{ currentSession.rescheduledTo }}</span>
+                        <span v-else class="flex items-center text-green-600 font-bold bg-green-50 px-4 py-1.5 rounded-full text-sm border border-green-100">
+                            <i class="fa-solid fa-check mr-2"></i> {{ currentSession.type === 'makeup' ? '補課日' : '正常上課' }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center" v-if="currentSession && (currentSession.type === 'normal' || currentSession.type === 'makeup')">
+                    <div class="flex items-center gap-2">
+                        <div class="relative w-48">
+                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400"><i class="fa-solid fa-magnifying-glass"></i></div>
+                            <input type="text" 
+                                   v-model="searchQuery" 
+                                   @keydown.enter.prevent="handleRapidInput"
+                                   class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 p-2 transition-colors duration-300" 
+                                   :class="rapidModeStatus ? 'bg-yellow-50 border-yellow-400 ring-1 ring-yellow-400' : ''"
+                                   :placeholder="rapidModeStatus ? '輸入座號 Enter...' : '搜尋姓名/座號...'" 
+                                   ref="searchInput">
+                        </div>
+                        
+                        <div class="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+                            <button @click="toggleRapidMode('late')" 
+                                    class="px-3 py-1.5 text-xs font-bold rounded transition border"
+                                    :class="rapidModeStatus === 'late' ? 'bg-yellow-400 text-white border-yellow-500 shadow-inner' : 'hover:bg-yellow-100 text-yellow-700 border-transparent'">
+                                遲到
+                            </button>
+                            <button @click="toggleRapidMode('absent')" 
+                                    class="px-3 py-1.5 text-xs font-bold rounded transition border mx-1"
+                                    :class="rapidModeStatus === 'absent' ? 'bg-red-500 text-white border-red-600 shadow-inner' : 'hover:bg-red-100 text-red-700 border-transparent'">
+                                缺席
+                            </button>
+                            <button @click="toggleRapidMode('leave')" 
+                                    class="px-3 py-1.5 text-xs font-bold rounded transition border"
+                                    :class="rapidModeStatus === 'leave' ? 'bg-blue-400 text-white border-blue-500 shadow-inner' : 'hover:bg-blue-100 text-blue-700 border-transparent'">
+                                公假
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button @click="saveCurrentSession" class="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition font-bold text-sm border border-blue-700" title="點選此按鈕後，會將所有空白的狀態轉為出席"><i class="fa-solid fa-floppy-disk mr-2"></i> 儲存確認</button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-hidden bg-slate-50 relative flex flex-col min-h-0" v-if="currentSession">
+                <transition name="modal"><div v-if="currentSession.type === 'holiday'" class="absolute inset-0 z-10 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center"><div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6 text-red-500 text-4xl"><i class="fa-solid fa-mug-hot"></i></div><h2 class="text-3xl font-bold text-gray-800 mb-2">本週已停課</h2><p class="text-red-500 font-medium text-xl mb-6">{{ currentSession.holidayReason }}</p><p class="text-sm text-gray-400 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200"><i class="fa-solid fa-arrow-left mr-1"></i> 若需恢復上課，請至左側【課程異動清單】點擊還原按鈕</p></div></transition>
+                <transition name="modal"><div v-if="currentSession.type === 'rescheduled'" class="absolute inset-0 z-10 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center"><div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mb-6 text-orange-500 text-4xl"><i class="fa-solid fa-share-from-square"></i></div><h2 class="text-3xl font-bold text-gray-800 mb-2">課程已調動</h2><p class="text-gray-500 text-lg mb-6">本課程已調整至 <span class="text-orange-600 font-bold font-mono text-2xl mx-1">{{ currentSession.rescheduledTo }}</span> 上課</p><div class="flex flex-col items-center space-y-4"><button @click="jumpToDate(currentSession.rescheduledTo)" class="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg shadow font-bold transition"><i class="fa-solid fa-arrow-right mr-2"></i> 前往補課日期</button><p class="text-sm text-gray-400 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200"><i class="fa-solid fa-arrow-left mr-1"></i> 若需取消調課，請至左側【課程異動清單】操作</p></div></div></transition>
+
+                <div class="bg-white shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col" v-if="currentSession.type === 'normal' || currentSession.type === 'makeup'">
+                    <div class="table-container custom-scroll">
+                        <table class="w-full text-left border-separate border-spacing-0 table-fixed">
+                            <thead class="sticky-header">
+                                <tr class="text-gray-500 text-xs uppercase tracking-wider">
+                                    <th class="p-4 w-16 text-center bg-gray-50">No.</th>
+                                    <th class="p-4 w-28 bg-gray-50">姓名</th>
+                                    <th class="p-4 w-[480px] bg-gray-50">
+                                        <div class="flex items-center">
+                                            點名狀態
+                                            <select v-model="filterStatus" class="ml-2 text-xs border-gray-300 rounded shadow-sm py-0.5 pl-1 pr-6 bg-white text-gray-700 font-normal cursor-pointer">
+                                                <option value="all">全部顯示</option>
+                                                <option value="absent">只看缺席</option>
+                                                <option value="late">只看遲到</option>
+                                                <option value="leave">只看公假</option>
+                                                <option value="present">只看出席</option>
+                                            </select>
+                                        </div>
+                                    </th>
+                                    <th class="p-4 text-center w-40 bg-gray-50">加扣分</th>
+                                    <th class="p-4 bg-gray-50">加扣分細項紀錄</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                <tr v-for="student in filteredStudents" :key="student.sid" class="hover:bg-indigo-50/30 transition-colors">
+                                    <td class="p-4 font-mono font-bold border-r border-gray-100 text-center" 
+                                        :class="hasActivity(currentSession, student.sid) ? 'bg-yellow-100 text-yellow-800' : 'text-gray-400'">
+                                        {{ student.sid }}
+                                    </td>
+                                    <td class="p-4 font-bold text-gray-800 text-lg">{{ student.name }}</td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-4">
+                                            <div class="inline-flex bg-gray-100 p-1 rounded-lg shrink-0">
+                                                <button v-for="opt in statusOptions" @click="setStudentStatus(student, opt.val)"
+                                                        :class="student.status === opt.val ? opt.color + ' text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'"
+                                                        class="px-3 py-1.5 rounded text-sm font-bold transition-all">{{ opt.label }}</button>
+                                            </div>
+                                            <div v-if="student.status === 'absent'" class="flex gap-1">
+                                                <button @click="student.statusNote='病假'" class="px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 font-bold">病</button>
+                                                <button @click="student.statusNote='事假'" class="px-2 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded text-xs hover:bg-orange-100 font-bold">事</button>
+                                            </div>
+                                            
+                                            <input type="text" v-model="student.statusNote" :disabled="student.status !== 'leave' && student.status !== 'absent'" 
+                                                   :placeholder="student.status === 'leave' ? '公假事由...' : (student.status === 'absent' ? '缺席原因...' : '')"
+                                                   class="input-transition flex-1 min-w-[140px] text-sm px-3 py-1.5 rounded border focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                   :class="(student.status === 'leave' || student.status === 'absent') ? 'bg-white border-blue-300 text-gray-800 shadow-inner' : 'bg-gray-100 border-transparent text-gray-400 cursor-not-allowed'">
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center justify-center space-x-2 bg-white rounded-full px-2 py-1 w-fit mx-auto border border-gray-200 shadow-sm">
+                                            <button @click="openScoreModal(student, 'sub')" class="w-8 h-8 rounded-full bg-gray-50 text-gray-400 hover:bg-red-500 hover:text-white transition flex items-center justify-center"><i class="fa-solid fa-minus"></i></button>
+                                            <span class="font-mono font-bold w-10 text-center text-xl" :class="student.score < 0 ? 'text-red-500' : (student.score > 0 ? 'text-green-500' : 'text-gray-400')">{{ student.score }}</span>
+                                            <button @click="openScoreModal(student, 'add')" class="w-8 h-8 rounded-full bg-gray-50 text-gray-400 hover:bg-green-500 hover:text-white transition flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>
+                                        </div>
+                                    </td>
+                                    <td class="p-4 align-top">
+                                        <div class="h-16 overflow-y-auto custom-scroll border border-gray-100 rounded bg-gray-50/50 p-1">
+                                            <ul class="space-y-1">
+                                                <li v-for="(log, idx) in student.logs" :key="idx" 
+                                                    class="flex items-center justify-between bg-white px-2 py-1 rounded shadow-sm border border-gray-100 group text-xs">
+                                                    <span class="font-medium truncate mr-2" :class="log.amount > 0 ? 'text-green-700' : 'text-red-700'">
+                                                        {{ log.reason }} <span class="font-bold">({{ log.amount > 0 ? '+' : ''}}{{ log.amount }})</span>
+                                                    </span>
+                                                    <button @click="removeLog(student, idx)" class="text-red-400 hover:text-red-600 transition p-1 rounded hover:bg-red-50" title="刪除">
+                                                        <i class="fa-solid fa-xmark"></i>
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <transition name="modal"><div v-if="deleteOptionModal.show" class="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm"><div class="bg-white rounded-xl shadow-2xl w-80 p-6"><h3 class="text-lg font-bold text-purple-600 mb-2 flex items-center"><i class="fa-solid fa-calendar-xmark mr-2"></i> 刪除補課日期</h3><p class="text-sm text-gray-500 mb-6">您正在刪除一個調課後的補課日期。請問您希望：</p><div class="flex flex-col gap-3"><button @click="handleDeleteOption('restore')" class="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded font-bold shadow transition"><i class="fa-solid fa-rotate-left mr-2"></i> 恢復原本日期</button><button @click="handleDeleteOption('reschedule')" class="w-full py-2 bg-orange-500 hover:bg-orange-600 text-white rounded font-bold shadow transition"><i class="fa-solid fa-calendar-days mr-2"></i> 改期 (重新調課)</button><button @click="deleteOptionModal.show=false" class="w-full py-2 text-gray-400 hover:text-gray-600 text-sm">取消</button></div></div></div></transition>
+        <transition name="modal"><div v-if="actionModal.show" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm"><div class="bg-white rounded-xl shadow-2xl w-80 p-6 border border-gray-100 text-center"><h3 class="text-lg font-bold text-gray-800 mb-1">課程操作</h3><p class="text-indigo-600 font-mono font-bold text-xl mb-6">{{ actionModal.date }}</p><div class="space-y-3"><button @click="openSuspendModal" class="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg border border-red-200 transition flex items-center justify-center"><i class="fa-solid fa-ban mr-2"></i> 停課 (Suspend)</button><button @click="openRescheduleModalFromAction" class="w-full py-3 bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold rounded-lg border border-orange-200 transition flex items-center justify-center"><i class="fa-solid fa-calendar-days mr-2"></i> 調課 (Reschedule)</button><div class="h-px bg-gray-100 my-2"></div><button @click="actionModal.show = false" class="w-full py-2 text-gray-400 hover:text-gray-600 font-medium text-sm">取消</button></div></div></div></transition>
+        <transition name="modal"><div v-if="suspendModal.show" class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm"><div class="bg-white rounded-xl shadow-2xl w-80 p-6"><h3 class="text-lg font-bold text-red-600 mb-4 flex items-center"><i class="fa-solid fa-ban mr-2"></i> 設定停課</h3><input type="text" v-model="suspendModal.reason" class="w-full border p-2 rounded mb-4 focus:ring-2 focus:ring-red-500 outline-none" placeholder="輸入停課原因 (如: 颱風假)" ref="suspendInput"><div class="flex justify-end space-x-2"><button @click="suspendModal.show=false" class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded">取消</button><button @click="confirmSuspend" class="px-4 py-1.5 bg-red-600 text-white font-bold rounded shadow hover:bg-red-700">確認停課</button></div></div></div></transition>
+        <transition name="modal"><div v-if="rescheduleModal.show" class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm"><div class="bg-white rounded-xl shadow-2xl w-80 p-6"><h3 class="text-lg font-bold text-orange-600 mb-4 flex items-center"><i class="fa-solid fa-share-from-square mr-2"></i> 調課至...</h3><div class="mb-4"><label class="block text-xs font-bold text-gray-500 mb-1">新日期</label><input type="date" v-model="rescheduleModal.newDate" class="w-full border p-2 rounded focus:ring-2 focus:ring-orange-500 outline-none"></div><div class="flex justify-end space-x-2"><button @click="rescheduleModal.show=false" class="px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded">取消</button><button @click="confirmReschedule" class="px-4 py-1.5 bg-orange-500 text-white font-bold rounded shadow hover:bg-orange-600">確認調課</button></div></div></div></transition>
+        <transition name="modal"><div v-if="scoreModal.show" class="fixed inset-0 z-[70] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm"><div class="bg-white rounded-xl shadow-2xl w-96 p-6 transform transition-all border border-gray-200"><div class="flex justify-between items-center mb-4"><h3 class="text-lg font-bold flex items-center" :class="scoreModal.type === 'add' ? 'text-green-600' : 'text-red-600'">{{ scoreModal.type === 'add' ? '加分' : '扣分' }} ({{ globalStep }}分)</h3><button @click="scoreModal.show=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button></div><p class="text-sm text-gray-500 mb-2">學生：<span class="font-bold text-gray-800">{{ scoreModal.studentName }}</span></p><input type="text" v-model="scoreModal.reason" class="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-indigo-500 outline-none mb-4" placeholder="自行輸入原因..." @keyup.enter="confirmScore" ref="reasonInput"><div class="mb-4"><div class="grid grid-cols-3 gap-2"><button v-for="btn in (scoreModal.type === 'sub' ? quickSubKeys : quickAddKeys)" @click="quickSubmit(btn)" class="text-xs py-2 px-1 rounded border border-gray-200 hover:border-gray-400 bg-gray-50 hover:bg-white hover:shadow-sm transition text-gray-700">{{ btn }}</button></div></div><div class="flex justify-end space-x-2 pt-2 border-t border-gray-100"><button @click="scoreModal.show=false" class="px-3 py-1.5 rounded text-gray-500 hover:bg-gray-100 text-sm">取消</button><button @click="confirmScore" class="px-6 py-1.5 rounded text-white font-bold shadow text-sm" :class="scoreModal.type==='add'?'bg-green-600':'bg-red-600'">確認送出</button></div></div></div></transition>
+        
+        <transition name="modal">
+            <div v-if="overviewModal.show" class="fixed inset-0 z-[80] flex items-center justify-center bg-gray-900/80 backdrop-blur-sm">
+                <div class="bg-white rounded-xl shadow-2xl w-[95%] h-[90%] flex flex-col overflow-hidden">
+                    <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-slate-50">
+                        <div class="flex items-center">
+                            <h2 class="text-2xl font-bold text-gray-800 mr-4"><i class="fa-solid fa-table-list mr-2 text-indigo-600"></i> 班級總覽報表</h2>
+                            <span class="text-sm bg-yellow-200 px-2 py-1 rounded font-bold text-gray-800">{{ currentClassKey }}</span>
+                            <button @click="exportToExcel" class="ml-4 bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-xs font-bold transition flex items-center">
+                                <i class="fa-solid fa-file-arrow-down mr-1"></i> 匯出此表
+                            </button>
+                        </div>
+                        <button @click="overviewModal.show=false" class="text-gray-500 hover:text-gray-800 text-2xl"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="flex-1 overflow-auto p-0 custom-scroll relative">
+                        <table class="w-full text-sm border-separate border-spacing-0">
+                            <thead class="sticky-top-header">
+                                <tr>
+                                    <th class="border-b border-r border-gray-300 p-2 min-w-[60px] sticky-corner-1 bg-white text-center z-50">座號</th>
+                                    <th class="border-b border-r border-gray-300 p-2 min-w-[100px] sticky-corner-2 bg-white text-center z-50">姓名</th>
+                                    <th class="border-b border-r border-gray-300 p-2 min-w-[60px] bg-white text-center">總分</th>
+                                    <th v-for="s in sortedSessions" :key="s.id" 
+                                        class="border-b border-r border-gray-300 p-2 min-w-[80px] font-mono text-xs text-center cursor-pointer hover:bg-gray-200 transition bg-white"
+                                        :class="{
+                                            '!bg-red-50 text-red-600': s.type==='holiday', 
+        '!bg-orange-50 text-orange-600': s.type==='rescheduled', // 調課標題 (橘底橘字)
+        '!bg-emerald-50 text-emerald-600': s.type==='makeup'     // 補課標題 (綠底綠字)
+    }"
+                                        @click="jumpToDateFromOverview(s.date)">
+                                        {{ s.date }}<br>
+                                        <span v-if="s.type==='holiday'">停</span>
+                                        <span v-else-if="s.type==='rescheduled'">調</span>
+                                        <span v-else-if="s.type==='makeup'">補</span>
+                                        <span v-else>W{{ getWeekIndex(s) }}</span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="st in studentList" :key="st.sid" class="hover:bg-slate-50">
+                                    <td class="border-b border-r border-gray-300 p-2 text-center font-mono sticky-col-1 bg-white z-40 font-bold text-gray-500">{{ st.sid }}</td>
+                                    <td class="border-b border-r border-gray-300 p-2 font-bold sticky-col-2 bg-white z-40 text-gray-800">{{ st.name }}</td>
+                                    <td class="border-b border-r border-gray-300 p-2 text-center font-bold text-indigo-600">{{ calculateStudentTotal(st.sid) }}</td>
+                                    <td v-for="s in sortedSessions" :key="s.id" 
+                                        class="border-b border-r border-gray-300 p-2 text-center text-xs cursor-pointer hover:bg-indigo-50 transition"
+    :class="{
+        'bg-red-50': s.type==='holiday', 
+        'bg-orange-50': s.type==='rescheduled',
+        /* 這裡移除了 makeup 的背景色，使其保持預設白色 */
+        'bg-yellow-50': hasActivity(s, st.sid) && s.type !== 'rescheduled' && s.type !== 'holiday'
+    }"
+    @click="jumpToDateFromOverview(s.date)">
+    
+    <div v-if="(s.type==='normal' || s.type==='makeup') && shouldShowRecord(s)">
+        <div v-if="getRecord(s, st.sid).status !== 'present' && getRecord(s, st.sid).status !== ''" class="inline-block px-1.5 rounded text-white mb-1" :class="{'bg-red-500': getRecord(s, st.sid).status==='absent','bg-yellow-500': getRecord(s, st.sid).status==='late','bg-blue-400': getRecord(s, st.sid).status==='leave'}">{{ getStatusLabel(getRecord(s, st.sid).status) }}</div>
+        <div v-else-if="getRecord(s, st.sid).status === 'present'" class="text-green-500 font-bold">V</div>
+        <div v-else class="text-gray-300">-</div>
+        <div v-if="getRecord(s, st.sid).score !== 0" class="font-bold block mt-1" :class="getRecord(s, st.sid).score > 0 ? 'text-green-600' : 'text-red-600'">{{ getRecord(s, st.sid).score > 0 ? '+' : '' }}{{ getRecord(s, st.sid).score }}</div>
+    </div>
+    <div v-else-if="s.type==='normal' || s.type==='makeup'" class="text-gray-200">/</div>
+    <div v-else class="text-gray-200">/</div>
+</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <transition name="modal"><div v-if="setupModal.show" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm"><div class="bg-white rounded-xl shadow-2xl w-[400px] p-8 modal-container border border-gray-200 relative"><button @click="setupModal.show = false" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-500 rounded-full transition" title="關閉視窗"><i class="fa-solid fa-xmark"></i></button><h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center"><i class="fa-solid fa-rocket text-indigo-600 mr-3"></i> 課程設定</h2><div class="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-100 text-center"><p class="text-sm text-emerald-600 mb-3 font-bold">已有 Excel 課表？</p><button @click="triggerFileUpload" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow font-bold transition flex items-center justify-center"><i class="fa-solid fa-file-excel mr-2"></i> 匯入/還原 Excel</button><p class="text-[10px] text-gray-400 mt-2">支援自動識別班級、導師、名單與完整舊紀錄</p></div><div class="relative flex py-2 items-center mb-4"><div class="flex-grow border-t border-gray-200"></div><span class="flex-shrink-0 mx-4 text-gray-400 text-xs font-bold">或 手動設定</span><div class="flex-grow border-t border-gray-200"></div></div><div class="space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-2">第一週上課日</label><input type="date" v-model="setupModal.startDate" class="w-full border border-gray-300 rounded-lg p-3 outline-none font-mono"></div><div><label class="block text-sm font-bold text-gray-700 mb-2">總週數</label><input type="number" v-model.number="setupModal.totalWeeks" min="1" class="w-full border border-gray-300 rounded-lg p-3 outline-none font-bold"></div><div class="flex justify-between items-center mt-8"><button @click="clearAllData" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> 全部清空</button><div class="flex gap-2"><button v-if="sessions.length" @click="setupModal.show = false" class="px-4 py-2 text-gray-500 font-medium">取消</button><button @click="generateSchedule" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-lg shadow-indigo-200">產生課表</button></div></div></div></div></div></transition>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, reactive, nextTick, watch } = Vue;
+
+        createApp({
+            setup() {
+                const formatDate = (d) => { const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0'); return `${y}-${m}-${day}`; };
+
+                const allClasses = reactive({});
+                const currentClassKey = ref('');
+                const fileInput = ref(null);
+
+                const sessions = ref([]); 
+                const studentList = ref([]);
+                const currentTeacher = ref('');
+                const calendarViewDate = ref(new Date());
+                const currentSessionIndex = ref(0);
+                const globalStep = ref(1);
+                const reasonInput = ref(null), suspendInput = ref(null), searchInput = ref(null);
+                const searchQuery = ref('');
+                const sessionRefs = ref([]); 
+                const rapidModeStatus = ref(null); 
+                const filterStatus = ref('all');
+
+                const setupModal = reactive({ show: true, startDate: formatDate(new Date()), totalWeeks: 18 });
+                const scoreModal = reactive({ show: false, type: 'add', studentName: '', reason: '', targetStudent: null });
+                const actionModal = reactive({ show: false, date: '', session: null });
+                const suspendModal = reactive({ show: false, reason: '' });
+                const rescheduleModal = reactive({ show: false, newDate: '' });
+                const overviewModal = reactive({ show: false });
+                const deleteOptionModal = reactive({ show: false, targetSession: null, sourceSession: null });
+
+                const quickSubKeys = ['上課睡覺', '未帶習作', '未帶課本', '吵鬧喧嘩', '遲到進班', '未帶實作品', '未帶用品', '作業未完成', '未正確使用機具'];
+                const quickAddKeys = ['課堂回答問題', '作業優良', '協助同學', '小組表現優良', '全勤獎勵', '筆記詳盡'];
+
+                // Load localStorage
+                const savedData = localStorage.getItem('classData_v38');
+                if(savedData) {
+                    try {
+                        const parsed = JSON.parse(savedData);
+                        Object.assign(allClasses, parsed);
+                        const keys = Object.keys(allClasses);
+                        if(keys.length > 0) {
+                            currentClassKey.value = keys[keys.length-1];
+                            setTimeout(() => loadClass(currentClassKey.value), 0);
+                            setupModal.show = false;
+                        }
+                    } catch(e) { console.error("Load error", e); }
+                }
+
+                watch(allClasses, () => {
+                    localStorage.setItem('classData_v38', JSON.stringify(allClasses));
+                }, { deep: true });
+
+                const loadClass = (key) => {
+                    const cls = allClasses[key];
+                    if(cls) {
+                        sessions.value = cls.sessions; 
+                        studentList.value = cls.students;
+                        currentTeacher.value = cls.teacher || '';
+                        if(sessions.value.length > 0) {
+                            const today = new Date();
+                            today.setHours(0,0,0,0);
+                            let closestIdx = 0;
+                            let minDiff = Infinity;
+                            
+                            sessions.value.forEach((s, idx) => {
+                                const d = new Date(s.date);
+                                const diff = Math.abs(d - today);
+                                if(diff < minDiff) { minDiff = diff; closestIdx = idx; }
+                            });
+                            
+                            currentSessionIndex.value = closestIdx;
+                            const parts = sessions.value[closestIdx].date.split('-');
+                            calendarViewDate.value = new Date(parts[0], parts[1]-1, 1);
+                        }
+                    } else {
+                        sessions.value = []; studentList.value = []; currentTeacher.value = '';
+                    }
+                };
+
+                const switchClass = () => { loadClass(currentClassKey.value); };
+
+                const deleteCurrentClass = () => {
+                    if(!currentClassKey.value) return;
+                    if(confirm(`確定要刪除班級「${currentClassKey.value}」嗎？此動作無法復原。`)) {
+                        delete allClasses[currentClassKey.value];
+                        const keys = Object.keys(allClasses);
+                        if(keys.length > 0) { currentClassKey.value = keys[0]; loadClass(keys[0]); } 
+                        else { currentClassKey.value = ''; loadClass(''); setupModal.show = true; }
+                    }
+                };
+
+                const clearAllData = () => {
+                    if(confirm("確定要清空所有資料嗎？此動作無法復原！")) {
+                        Object.keys(allClasses).forEach(k => delete allClasses[k]);
+                        currentClassKey.value = '';
+                        sessions.value = [];
+                        studentList.value = [];
+                        currentTeacher.value = '';
+                    }
+                };
+
+                const generateSchedule = () => {
+                    const className = `新班級 ${Object.keys(allClasses).length + 1}`;
+                    currentClassKey.value = className;
+                    const parts = setupModal.startDate.split('-');
+                    const start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    const newSessions = [];
+                    for (let i = 0; i < setupModal.totalWeeks; i++) {
+                        let d = new Date(start); d.setDate(start.getDate() + (i * 7));
+                        newSessions.push({ id: Date.now() + i, date: formatDate(d), type: 'normal', holidayReason: '', rescheduledTo: '', isRollCallDone: false, records: [] });
+                    }
+                    allClasses[className] = { sessions: newSessions, students: [], teacher: '' };
+                    loadClass(className);
+                    setupModal.show = false; 
+                };
+
+                const triggerFileUpload = () => fileInput.value.click();
+                
+                // --- V38 核心：強化版匯入邏輯 (含導師與調課還原) ---
+                const handleFileUpload = (e) => {
+                    const file = e.target.files[0];
+                    if(!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        let importedCount = 0;
+
+                        workbook.SheetNames.forEach(sheetName => {
+                            const worksheet = workbook.Sheets[sheetName];
+                            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                            if(rows.length === 0) return;
+
+                            let teacherName = '';
+                            let headerRowIdx = -1;
+                            let nameColIdx = -1, sidColIdx = -1;
+
+                            // 1. 搜尋表頭
+                            for(let r=0; r<Math.min(rows.length, 15); r++) {
+                                const row = rows[r];
+                                const rowStr = row.join(' ');
+                                if(rowStr.match(/導[\s　]*師/) && !teacherName) {
+                                    for(let c=0; c<row.length; c++) {
+                                        if(String(row[c]).match(/導[\s　]*師/)) {
+                                            if(row[c+1]) teacherName = String(row[c+1]).trim();
+                                            else if(String(row[c]).includes('：') || String(row[c]).includes(':')) teacherName = String(row[c]).split(/[:：]/)[1].trim();
+                                        }
+                                    }
+                                }
+                                if(headerRowIdx === -1) {
+                                    for(let c=0; c<row.length; c++) {
+                                        const cell = String(row[c]).trim().replace(/\s/g, '');
+                                        if(cell === '姓名' || cell.toLowerCase() === 'name') nameColIdx = c;
+                                        if(cell === '座號' || cell === '學號' || cell.toLowerCase() === 'id' || cell.toLowerCase() === 'sid' || cell.toLowerCase() === 'no') sidColIdx = c;
+                                    }
+                                    if(nameColIdx !== -1) headerRowIdx = r;
+                                }
+                            }
+
+                            if(headerRowIdx !== -1) {
+                                const headerRow = rows[headerRowIdx];
+                                const isBackupFile = headerRow.some(cell => String(cell).includes('狀態') || String(cell).includes('備註') || String(cell).includes('評分'));
+                                
+                                const newStudents = [];
+                                for(let i=headerRowIdx+1; i<rows.length; i++){
+                                    const row = rows[i];
+                                    if(!row || row.length === 0) continue;
+                                    const rawName = row[nameColIdx];
+                                    const rawSid = sidColIdx !== -1 ? row[sidColIdx] : (newStudents.length + 1);
+                                    if(!rawName) continue;
+                                    const nameStr = String(rawName).trim();
+                                    if(nameStr === '姓名' || nameStr.includes('Name') || nameStr.length > 20) continue;
+                                    newStudents.push({ sid: rawSid, name: nameStr });
+                                }
+
+                                if(newStudents.length === 0) return;
+
+                                let newSessions = [];
+
+                                if (isBackupFile) {
+                                    // V38: 解析調課與停課資訊
+                                    const dateMap = new Map();
+                                    headerRow.forEach((cell, idx) => {
+                                        const cellStr = String(cell).trim();
+                                        // 匹配: 2026-02-04 或 2026/02/04
+                                        const dateMatch = cellStr.match(/(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/);
+                                        if(dateMatch) {
+                                            const dStr = dateMatch[1].replace(/\//g, '-'); 
+                                            if(!dateMap.has(dStr)) {
+                                                // 初始化 session 資訊，預設 normal
+                                                let meta = { statusIdx: -1, noteIdx: -1, type: 'normal', holidayReason: '', rescheduledTo: '' };
+                                                
+                                                // 讀取標題中的 Metadata: [停課:原因] [調課:日期] [補課]
+                                                if(cellStr.includes('[停課')) {
+                                                    meta.type = 'holiday';
+                                                    const reasonMatch = cellStr.match(/\[停課:(.*?)\]/);
+                                                    if(reasonMatch) meta.holidayReason = reasonMatch[1];
+                                                } else if(cellStr.includes('[調課')) {
+                                                    meta.type = 'rescheduled';
+                                                    const newDateMatch = cellStr.match(/\[調課:(.*?)\]/);
+                                                    if(newDateMatch) meta.rescheduledTo = newDateMatch[1];
+                                                } else if(cellStr.includes('[補課')) {
+                                                    meta.type = 'makeup';
+                                                }
+
+                                                dateMap.set(dStr, meta);
+                                            }
+                                            
+                                            const meta = dateMap.get(dStr);
+                                            if(cellStr.includes('狀態')) meta.statusIdx = idx;
+                                            else if(cellStr.includes('備註') || cellStr.includes('評分')) meta.noteIdx = idx;
+                                        }
+                                    });
+
+                                    const sortedDates = Array.from(dateMap.keys()).sort((a,b) => new Date(a) - new Date(b));
+                                    sortedDates.forEach((dStr, sIdx) => {
+                                        const meta = dateMap.get(dStr);
+                                        
+                                        // 建立學生的 records
+                                        const records = newStudents.map((st, stIdx) => {
+                                            const row = rows[headerRowIdx + 1 + stIdx];
+                                            let status = '';
+                                            let score = 0;
+                                            let logs = [];
+                                            let statusNote = '';
+
+                                            if(meta.statusIdx !== -1) {
+                                                const val = String(row[meta.statusIdx] || '').trim();
+                                                if(val === '缺席') status = 'absent';
+                                                else if(val === '遲到') status = 'late';
+                                                else if(val === '公假') status = 'leave';
+                                                else if(val === 'V') status = 'present';
+                                                // 空白維持未定
+                                            }
+
+                                            if(meta.noteIdx !== -1) {
+                                                const noteVal = String(row[meta.noteIdx] || '').trim();
+                                                if(noteVal && noteVal !== '-') {
+                                                    const leaveMatch = noteVal.match(/\[假由:(.*?)\]/);
+                                                    if(leaveMatch) statusNote = leaveMatch[1];
+                                                    const logMatches = noteVal.matchAll(/([^;\[\]\s]+)\(([+-]?\d+)\)/g);
+                                                    for (const match of logMatches) {
+                                                        const reason = match[1];
+                                                        const amount = parseInt(match[2]);
+                                                        if(!isNaN(amount)) {
+                                                            logs.push({ reason, amount });
+                                                            score += amount;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            return { sid: st.sid, name: st.name, status, statusNote, score, logs };
+                                        });
+
+                                        const isDone = records.some(r => r.status !== '' || r.score !== 0 || r.logs.length > 0);
+
+                                        newSessions.push({
+                                            id: Date.now() + sIdx,
+                                            date: dStr,
+                                            type: meta.type,
+                                            holidayReason: meta.holidayReason,
+                                            rescheduledTo: meta.rescheduledTo,
+                                            isRollCallDone: isDone,
+                                            records: records
+                                        });
+                                    });
+
+                                } else {
+                                    // 普通名單匯入 (無變化)
+                                    let dateRowIndices = [headerRowIdx];
+                                    if(headerRowIdx > 0) dateRowIndices.unshift(headerRowIdx-1);
+                                    let dateCols = [];
+                                    for(let rIdx of dateRowIndices) {
+                                        const row = rows[rIdx];
+                                        row.forEach((cell, cIdx) => {
+                                            if(cIdx !== nameColIdx && cIdx !== sidColIdx) {
+                                                let parsed = null;
+                                                const s = String(cell).trim();
+                                                if(s.match(/^\d{1,2}[-\/]\d{1,2}$/)) { 
+                                                    const now = new Date(); 
+                                                    parsed = `${now.getFullYear()}-${s.replace('/','-')}`; 
+                                                } else if(s.match(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/)) {
+                                                    parsed = s.replace(/\//g, '-');
+                                                }
+                                                if(parsed) dateCols.push({ dateStr: parsed });
+                                            }
+                                        });
+                                        if(dateCols.length > 1) break; 
+                                    }
+                                    if(dateCols.length > 0) {
+                                        dateCols.forEach((dc, idx) => {
+                                            const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
+                                            newSessions.push({ id: Date.now() + idx, date: dc.dateStr, type: 'normal', isRollCallDone: false, records: records });
+                                        });
+                                    } else {
+                                        const start = new Date();
+                                        for(let k=0; k<18; k++) {
+                                            let d = new Date(start); d.setDate(start.getDate() + k*7);
+                                            const dStr = formatDate(d);
+                                            const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
+                                            newSessions.push({ id: Date.now() + k, date: dStr, type: 'normal', isRollCallDone: false, records: records });
+                                        }
+                                    }
+                                }
+
+                                if(allClasses[sheetName]) {
+                                    if(confirm(`班級 [${sheetName}] 已存在，是否覆蓋？`)) {
+                                        allClasses[sheetName] = { sessions: newSessions, students: newStudents, teacher: teacherName };
+                                        importedCount++;
+                                    }
+                                } else {
+                                    allClasses[sheetName] = { sessions: newSessions, students: newStudents, teacher: teacherName };
+                                    importedCount++;
+                                }
+                            }
+                        });
+                        
+                        if(importedCount > 0) {
+                            const keys = Object.keys(allClasses);
+                            currentClassKey.value = keys[keys.length-1];
+                            loadClass(currentClassKey.value);
+                            setupModal.show = false;
+                            alert(`成功匯入 ${importedCount} 個班級！資料已完整還原。`);
+                        } else {
+                            alert("匯入失敗：找不到有效的姓名欄位，請確認 Excel 包含「姓名」欄。");
+                        }
+                    };
+                    reader.readAsArrayBuffer(file); e.target.value = '';
+                };
+
+                const isFutureOrToday = (dateStr) => {
+                    const d = new Date(dateStr);
+                    const now = new Date();
+                    now.setHours(0,0,0,0);
+                    return d >= now; 
+                };
+
+                const shouldShowRecord = (session) => true;
+
+                const saveCurrentSession = () => {
+                    if(!currentSession.value) return;
+                    let count = 0;
+                    currentSession.value.records.forEach(s => {
+                        if(!s.status || s.status === '') {
+                            s.status = 'present';
+                            count++;
+                        }
+                    });
+                    currentSession.value.isRollCallDone = true;
+                    sessions.value = [...sessions.value];
+                    
+                    if (count === 0) {
+                        alert("儲存成功");
+                    } else {
+                        alert(`儲存成功！已將 ${count} 位未標記者設為出席。`);
+                    }
+                };
+
+                const setStudentStatus = (student, newStatus) => {
+                    if(student.status === newStatus) {
+                         student.status = '';
+                         student.statusNote = '';
+                    } else {
+                        student.statusNote = ''; // 切換狀態時，強制清空備註
+                        student.status = newStatus;
+                    }
+                };
+
+                // --- V38 核心：強化版匯出 (加入導師與 Metadata) ---
+                const exportToExcel = () => {
+                    const wb = XLSX.utils.book_new();
+                    const sData = sessions.value;
+                    const cStudents = studentList.value;
+                    
+                    // 1. 建立標題列 (班級與導師)
+                    const titleRow = [currentClassKey.value, `導師: ${currentTeacher.value || ''}`];
+                    
+                    // 2. 建立 Header Row，將異動資訊寫入日期欄
+                    const header = ['學號', '姓名', '總分'];
+                    
+                    // 3. 預先計算總分
+                    const studentScores = {};
+                    cStudents.forEach(s => studentScores[s.sid] = calculateStudentTotal(s.sid));
+                    
+                    sData.forEach(sess => {
+                        // 不論是 normal/holiday/makeup 都匯出，以便還原
+                        let dateLabel = sess.date;
+                        if(sess.type === 'holiday') dateLabel += ` [停課:${sess.holidayReason}]`;
+                        else if(sess.type === 'rescheduled') dateLabel += ` [調課:${sess.rescheduledTo}]`;
+                        else if(sess.type === 'makeup') dateLabel += ` [補課]`;
+
+                        header.push(`${dateLabel} 狀態`, `${dateLabel} 備註/評分`);
+                    });
+                    
+                    const rows = [titleRow, header]; // 標題列 + 表頭
+
+                    cStudents.forEach(st => {
+                        const row = [st.sid, st.name, studentScores[st.sid]];
+                        sData.forEach(sess => {
+                            const rec = sess.records.find(r => r.sid === st.sid);
+                            if(rec) {
+                                const statusMap = {present:'V', absent:'缺席', late:'遲到', leave:'公假', '':' - '};
+                                row.push(statusMap[rec.status] || '-');
+                                
+                                const notes = rec.logs.map(l => `${l.reason}(${l.amount})`).join('; ');
+                                let finalNote = notes;
+                                if(rec.statusNote) finalNote = `[假由:${rec.statusNote}] ` + finalNote;
+                                if(!finalNote && rec.status === 'present') finalNote = '-';
+                                
+                                row.push(finalNote || '-');
+                            } else { row.push('-', '-'); }
+                        });
+                        rows.push(row);
+                    });
+                    
+                    const ws = XLSX.utils.aoa_to_sheet(rows);
+                    XLSX.utils.book_append_sheet(wb, ws, currentClassKey.value);
+                    XLSX.writeFile(wb, `${currentClassKey.value}_完整備份.xlsx`);
+                };
+
+                const exportAllClasses = () => {
+                    const wb = XLSX.utils.book_new();
+                    Object.keys(allClasses).forEach(className => {
+                        const cls = allClasses[className];
+                        const sData = cls.sessions;
+                        const cStudents = cls.students;
+                        const teacherName = cls.teacher;
+
+                        const titleRow = [className, `導師: ${teacherName || ''}`];
+                        const header = ['學號', '姓名', '總分'];
+                        const studentScores = {};
+                        cStudents.forEach(s => {
+                            let total = 80;
+                            sData.forEach(sess => {
+                                const rec = sess.records.find(r => r.sid === s.sid);
+                                if(rec) total += rec.score;
+                            });
+                            studentScores[s.sid] = total;
+                        });
+                        
+                        sData.forEach(sess => { 
+                            let dateLabel = sess.date;
+                            if(sess.type === 'holiday') dateLabel += ` [停課:${sess.holidayReason}]`;
+                            else if(sess.type === 'rescheduled') dateLabel += ` [調課:${sess.rescheduledTo}]`;
+                            else if(sess.type === 'makeup') dateLabel += ` [補課]`;
+                            header.push(`${dateLabel} 狀態`, `${dateLabel} 備註/評分`); 
+                        });
+                        
+                        const rows = [titleRow, header];
+                        cStudents.forEach(st => {
+                            const row = [st.sid, st.name, studentScores[st.sid]];
+                            sData.forEach(sess => {
+                                const rec = sess.records.find(r => r.sid === st.sid);
+                                if(rec) {
+                                    const statusMap = {present:'V', absent:'缺席', late:'遲到', leave:'公假', '':' - '};
+                                    row.push(statusMap[rec.status] || '-');
+                                    const notes = rec.logs.map(l => `${l.reason}(${l.amount})`).join('; ');
+                                    let finalNote = notes;
+                                    if(rec.statusNote) finalNote = `[假由:${rec.statusNote}] ` + finalNote;
+                                    row.push(finalNote || '-');
+                                } else { row.push('-', '-'); }
+                            });
+                            rows.push(row);
+                        });
+                        const ws = XLSX.utils.aoa_to_sheet(rows);
+                        XLSX.utils.book_append_sheet(wb, ws, className);
+                    });
+                    XLSX.writeFile(wb, `全部班級完整備份.xlsx`);
+                };
+
+                const jumpToDateFromOverview = (dateStr) => { const idx = sortedSessions.value.findIndex(s => s.date === dateStr); if(idx !== -1) { currentSessionIndex.value = idx; overviewModal.show = false; } };
+                const showOverviewModal = () => overviewModal.show = true;
+                const getWeekIndex = (s) => sortedSessions.value.findIndex(x=>x.id===s.id) + 1;
+                const getRecord = (session, sid) => session.records.find(r=>r.sid===sid) || {status:'',score:0};
+                const getStatusLabel = (s) => ({present:'V',absent:'缺',late:'遲',leave:'假'}[s] || '-');
+                
+                const hasActivity = (session, sid) => {
+                    const rec = getRecord(session, sid);
+                    if (!rec) return false;
+                    return (rec.status !== '' && rec.status !== 'present') || rec.score !== 0 || rec.statusNote !== '' || (rec.logs && rec.logs.length > 0);
+                };
+
+                const calculateStudentTotal = (sid) => { 
+                    let total = 80; 
+                    sessions.value.forEach(s => { 
+                        // Count all scores for backup accuracy
+                        const rec = s.records.find(r=>r.sid===sid); 
+                        if(rec) total += rec.score; 
+                    }); 
+                    return total; 
+                };
+
+                const toggleRapidMode = (status) => {
+                    if (rapidModeStatus.value === status) {
+                        rapidModeStatus.value = null; 
+                    } else {
+                        rapidModeStatus.value = status; 
+                        nextTick(() => searchInput.value && searchInput.value.focus());
+                    }
+                };
+
+                const handleRapidInput = () => {
+                    if (!searchQuery.value) return;
+                    if (rapidModeStatus.value) {
+                        const targetId = searchQuery.value.trim();
+                        const student = currentSession.value.records.find(s => s.sid.toString() === targetId || s.name === targetId);
+                        if (student) {
+                            student.status = rapidModeStatus.value;
+                            if(student.status !== 'absent' && student.status !== 'leave') student.statusNote = '';
+                            searchQuery.value = ''; 
+                            nextTick(() => searchInput.value && searchInput.value.focus());
+                        }
+                    }
+                };
+
+                const filteredStudents = computed(() => {
+                    if (!currentSession.value) return [];
+                    let result = currentSession.value.records;
+                    if (filterStatus.value !== 'all') {
+                        result = result.filter(s => s.status === filterStatus.value);
+                    }
+                    const q = searchQuery.value.trim().toLowerCase();
+                    if (q) {
+                        result = result.filter(s => s.name.includes(q) || s.sid.toString().includes(q));
+                    }
+                    return result;
+                });
+
+                watch(globalStep, (val) => { if (val > 5) globalStep.value = 5; if (val < 1) globalStep.value = 1; });
+                const handleCalendarClick = (day) => { const s = sessions.value.find(x => x.date === day.dateStr); if(s) { actionModal.session = s; actionModal.date = day.dateStr; actionModal.show = true; } else if(confirm(`新增 ${day.dateStr} 課程?`)) { sessions.value.push({id: Date.now(), date: day.dateStr, type: 'normal', records: studentList.value.map(st=>({...st, status:'', statusNote:'', score:0, logs:[]}))}); nextTick(()=> currentSessionIndex.value = sortedSessions.value.findIndex(x=>x.date===day.dateStr)); } };
+                const openSuspendModal = () => { actionModal.show = false; suspendModal.reason = '國定假日'; suspendModal.show = true; nextTick(() => suspendInput.value && suspendInput.value.focus()); };
+                const openRescheduleModalFromAction = () => { actionModal.show = false; rescheduleModal.newDate = ''; rescheduleModal.show = true; };
+                const confirmSuspend = () => { if(actionModal.session) { actionModal.session.type = 'holiday'; actionModal.session.holidayReason = suspendModal.reason; } suspendModal.show = false; };
+                const confirmReschedule = () => {
+                    if(!rescheduleModal.newDate) return alert("請選擇日期");
+                    const conflict = sessions.value.find(s => s.date === rescheduleModal.newDate);
+                    if(conflict) return alert(`日期 ${rescheduleModal.newDate} 已有課程！`);
+                    const original = actionModal.session; original.type = 'rescheduled'; original.rescheduledTo = rescheduleModal.newDate;
+                    const records = studentList.value.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
+                    sessions.value.push({ id: Date.now(), date: rescheduleModal.newDate, type: 'makeup', isRollCallDone: false, records: records });
+                    rescheduleModal.show = false;
+                };
+                const resetToNormal = (s) => { if(confirm("確定要恢復為正常上課嗎？")) { s.type = 'normal'; s.holidayReason = ''; s.rescheduledTo = ''; } };
+                const getDayClass = (day) => { const s = sessions.value.find(x => x.date === day.dateStr); let base = "text-gray-500 hover:bg-gray-100"; if(s) { if(s.type === 'holiday') base = "bg-red-500 text-white font-bold shadow-md"; else if(s.type === 'rescheduled') base = "bg-orange-500 text-white font-bold shadow-md"; else if(s.type === 'makeup') base = "bg-emerald-500 text-white font-bold shadow-md"; else base = "bg-indigo-500 text-white font-bold shadow-md"; if(currentSession.value && currentSession.value.date === day.dateStr) { if(s.type === 'holiday') base += " selected-ring-red"; else if(s.type === 'rescheduled') base += " selected-ring-orange"; else if(s.type === 'makeup') base += " selected-ring-green"; else base += " selected-ring"; } } return base; };
+                const sortedSessions = computed(() => [...sessions.value].sort((a, b) => new Date(a.date) - new Date(b.date)));
+                const abnormalSessions = computed(() => sortedSessions.value.filter(s => s.type !== 'normal' && s.type !== 'makeup').concat(sortedSessions.value.filter(s => s.type === 'makeup')));
+                const openScoreModal = (s, type) => { scoreModal.show = true; scoreModal.type = type; scoreModal.studentName = s.name; scoreModal.targetStudent = s; scoreModal.reason = ''; nextTick(() => reasonInput.value && reasonInput.value.focus()); };
+                const confirmScore = () => { if (scoreModal.targetStudent) applyScore(scoreModal.targetStudent, scoreModal.reason || (scoreModal.type === 'add' ? '加分' : '扣分'), scoreModal.type === 'add' ? globalStep.value : -globalStep.value); scoreModal.show = false; };
+                const quickSubmit = (reason) => { scoreModal.reason = reason; confirmScore(); };
+                const applyScore = (student, reason, amount) => { student.score += amount; student.logs.push({ reason: reason, amount: amount }); };
+                const removeLog = (student, index) => { const log = student.logs[index]; student.score -= log.amount; student.logs.splice(index, 1); };
+                const deleteSession = (id) => { if(confirm("是否取消上課？ (此動作無法復原)")) { sessions.value = sessions.value.filter(s=>s.id!==id); currentSessionIndex.value=0; } };
+                const handleDeleteOption = (type) => { if (type === 'restore') { if(deleteOptionModal.sourceSession) { deleteOptionModal.sourceSession.type = 'normal'; deleteOptionModal.sourceSession.rescheduledTo = ''; } sessions.value = sessions.value.filter(s => s.id !== deleteOptionModal.targetSession.id); } else if (type === 'reschedule') { if(deleteOptionModal.sourceSession) { actionModal.session = deleteOptionModal.sourceSession; rescheduleModal.newDate = ''; rescheduleModal.show = true; } sessions.value = sessions.value.filter(s => s.id !== deleteOptionModal.targetSession.id); } deleteOptionModal.show = false; currentSessionIndex.value = 0; };
+                const currentSession = computed(() => sortedSessions.value[currentSessionIndex.value] || null);
+                watch(currentSessionIndex, (newVal) => { if (sortedSessions.value[newVal]) { const parts = sortedSessions.value[newVal].date.split('-'); const targetDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])); if (targetDate.getMonth() !== calendarViewDate.value.getMonth()) calendarViewDate.value = targetDate; nextTick(() => { const el = sessionRefs.value[newVal]; if(el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }); } });
+                const calendarHeader = computed(() => `${calendarViewDate.value.getFullYear()}年 ${calendarViewDate.value.getMonth()+1}月`);
+                const daysInMonth = computed(() => { const y = calendarViewDate.value.getFullYear(), m = calendarViewDate.value.getMonth(), lastDay = new Date(y, m + 1, 0).getDate(); return Array.from({length: lastDay}, (_, i) => ({ day: i+1, dateStr: formatDate(new Date(y, m, i+1)) })); });
+                const startDayOffset = computed(() => new Date(calendarViewDate.value.getFullYear(), calendarViewDate.value.getMonth(), 1).getDay());
+                const changeMonth = (offset) => calendarViewDate.value = new Date(calendarViewDate.value.setMonth(calendarViewDate.value.getMonth() + offset));
+                const prevSession = () => currentSessionIndex.value > 0 && currentSessionIndex.value--;
+                const nextSession = () => currentSessionIndex.value < sortedSessions.value.length - 1 && currentSessionIndex.value++;
+                const jumpToDate = (d) => currentSessionIndex.value = sortedSessions.value.findIndex(s => s.date === d);
+                const getWeekDayName = (dStr) => ['週日','週一','週二','週三','週四','週五','週六'][new Date(dStr).getDay()];
+
+                return {
+                    setupModal, sessions, sortedSessions, currentSession, currentSessionIndex, abnormalSessions,
+                    calendarHeader, daysInMonth, startDayOffset, globalStep, scoreModal, reasonInput, searchQuery, filteredStudents,
+                    generateSchedule, handleCalendarClick, changeMonth, getDayClass, getWeekDayName,
+                    deleteSession, openSetupModal: () => setupModal.show=true, openScoreModal, confirmScore,
+                    quickSubmit, removeLog, quickSubKeys, quickAddKeys,
+                    prevSession, nextSession, jumpToDate, sessionRefs,
+                    actionModal, suspendModal, rescheduleModal, suspendInput,
+                    openSuspendModal, openRescheduleModalFromAction, confirmSuspend, confirmReschedule, resetToNormal,
+                    allClasses, currentClassKey, currentTeacher, switchClass, fileInput, triggerFileUpload, handleFileUpload, exportToExcel, exportAllClasses,
+                    deleteCurrentClass, studentList,
+                    overviewModal, showOverviewModal, getWeekIndex, getRecord, getStatusLabel, calculateStudentTotal, jumpToDateFromOverview, isFutureOrToday,
+                    saveCurrentSession, shouldShowRecord, hasActivity,
+                    searchInput, toggleRapidMode, rapidModeStatus, handleRapidInput, filterStatus,
+                    deleteOptionModal, handleDeleteOption, setStudentStatus, clearAllData,
+                    statusOptions: [{val:'present',label:'出席',color:'bg-indigo-500'},{val:'late',label:'遲到',color:'bg-yellow-500'},{val:'absent',label:'缺席',color:'bg-red-500'},{val:'leave',label:'公假',color:'bg-blue-400'}]
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
