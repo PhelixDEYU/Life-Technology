@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>課堂點名系統 V38.2 (日期修正版)</title>
+    <title>課堂點名系統 V38.3 (含課程備註)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -29,7 +29,6 @@
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; border: 2px solid #f1f1f1; }
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-        /* --- V38 表頭固定最終修正區 --- */
         .table-container {
             position: relative;
             flex: 1 1 0%;        
@@ -52,12 +51,7 @@
             background-color: #fff;
         }
         
-        /* 針對總覽表格的固定 (行列凍結) */
-        .sticky-top-header th { 
-            position: sticky; 
-            top: 0; 
-            z-index: 55; 
-        }
+        .sticky-top-header th { position: sticky; top: 0; z-index: 55; }
         .sticky-col-header-1 { position: sticky; left: 0; z-index: 60; }
         .sticky-col-header-2 { position: sticky; left: 60px; z-index: 60; }
         .sticky-col-1 { position: sticky; left: 0; z-index: 40; }
@@ -129,9 +123,9 @@
                     </div>
                 </div>
                 <div class="mt-3 flex justify-center space-x-2 text-[10px] text-gray-400 flex-wrap">
-                    <span class="flex items-center"><span class="w-2 h-2 bg-indigo-500 rounded-full mr-1"></span>正常上課</span>
+                    <span class="flex items-center"><span class="w-2 h-2 bg-indigo-500 rounded-full mr-1"></span>正常</span>
                     <span class="flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-1"></span>停課</span>
-                    <span class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-1"></span>已調課</span>
+                    <span class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-1"></span>調課</span>
                     <span class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span>補課</span>
                 </div>
             </div>
@@ -181,17 +175,20 @@
                         <div class="flex items-center">
                             <div class="w-8 text-center text-gray-400 font-mono text-xs mr-2">{{ index + 1 }}</div>
                             <div>
-                                <div class="text-xs font-bold mb-0.5 flex items-center">
+                                <div class="text-xs font-bold mb-0.5 flex items-center flex-wrap gap-1">
                                     <span :class="{
                                         'text-gray-800': session.type === 'normal',
                                         'text-red-500': session.type === 'holiday',
                                         'text-orange-500': session.type === 'rescheduled',
                                         'text-purple-600': session.type === 'makeup'
                                     }">{{ session.date }}</span>
-                                    <span v-if="session.type === 'holiday'" class="ml-2 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">停</span>
-                                    <span v-if="session.type === 'rescheduled'" class="ml-2 text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">調</span>
-                                    <span v-if="session.type === 'makeup'" class="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">補</span>
-                                    <span v-if="(session.type === 'normal' || session.type === 'makeup') && session.isRollCallDone" class="ml-2 text-[10px] bg-cyan-100 text-cyan-600 px-1.5 py-0.5 rounded font-bold">已存</span>
+                                    
+                                    <span v-if="session.note" class="text-[10px] bg-gray-100 text-gray-500 px-1.5 rounded border border-gray-200 truncate max-w-[80px]">{{ session.note }}</span>
+
+                                    <span v-if="session.type === 'holiday'" class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">停</span>
+                                    <span v-if="session.type === 'rescheduled'" class="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">調</span>
+                                    <span v-if="session.type === 'makeup'" class="text-[10px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">補</span>
+                                    <span v-if="(session.type === 'normal' || session.type === 'makeup') && session.isRollCallDone" class="text-[10px] bg-cyan-100 text-cyan-600 px-1.5 py-0.5 rounded font-bold">已存</span>
                                 </div>
                                 <div class="text-[10px] text-gray-400">{{ getWeekDayName(session.date) }}</div>
                             </div>
@@ -230,10 +227,16 @@
                                 <button @click="nextSession" :disabled="currentSessionIndex === sortedSessions.length - 1" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-white hover:shadow rounded disabled:opacity-30 transition"><i class="fa-solid fa-chevron-right"></i></button>
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-xl font-mono font-bold text-indigo-600 leading-tight" :class="{'text-purple-600': currentSession.type === 'makeup'}">
-                                    {{ currentSession.date }} 
-                                    <span v-if="currentSession.type === 'makeup'" class="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded ml-2">補課</span>
-                                </span>
+                                <div class="flex items-center">
+                                    <span class="text-xl font-mono font-bold text-indigo-600 leading-tight" :class="{'text-purple-600': currentSession.type === 'makeup'}">
+                                        {{ currentSession.date }} 
+                                        <span v-if="currentSession.type === 'makeup'" class="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded ml-2">補課</span>
+                                    </span>
+                                    <div class="ml-3 group relative">
+                                        <i class="fa-solid fa-pen text-[10px] text-gray-300 absolute left-0 top-1/2 -translate-y-1/2"></i>
+                                        <input type="text" v-model="currentSession.note" placeholder="課程備註..." class="pl-4 py-0.5 text-xs bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:outline-none text-gray-600 w-32 transition placeholder-gray-300">
+                                    </div>
+                                </div>
                                 <span class="text-xs text-gray-400 font-medium">{{ getWeekDayName(currentSession.date) }}</span>
                             </div>
                         </div>
@@ -552,6 +555,7 @@
                     }
                 };
 
+                // 修改 3: 產生課表時增加 note 欄位
                 const generateSchedule = () => {
                     const className = `新班級 ${Object.keys(allClasses).length + 1}`;
                     currentClassKey.value = className;
@@ -560,7 +564,7 @@
                     const newSessions = [];
                     for (let i = 0; i < setupModal.totalWeeks; i++) {
                         let d = new Date(start); d.setDate(start.getDate() + (i * 7));
-                        newSessions.push({ id: Date.now() + i, date: formatDate(d), type: 'normal', holidayReason: '', rescheduledTo: '', isRollCallDone: false, records: [] });
+                        newSessions.push({ id: Date.now() + i, date: formatDate(d), type: 'normal', note: '', holidayReason: '', rescheduledTo: '', isRollCallDone: false, records: [] });
                     }
                     allClasses[className] = { sessions: newSessions, students: [], teacher: '' };
                     loadClass(className);
@@ -569,7 +573,6 @@
 
                 const triggerFileUpload = () => fileInput.value.click();
                 
-                // --- V38.2 核心修正：強化版匯入邏輯 (含日期修正) ---
                 const handleFileUpload = (e) => {
                     const file = e.target.files[0];
                     if(!file) return;
@@ -702,6 +705,8 @@
                                             id: Date.now() + sIdx,
                                             date: dStr,
                                             type: meta.type,
+                                            // 備註還原邏輯暫時保留預設，若需完整還原可擴充
+                                            note: '', 
                                             holidayReason: meta.holidayReason,
                                             rescheduledTo: meta.rescheduledTo,
                                             isRollCallDone: isDone,
@@ -722,20 +727,15 @@
                                                 let parsed = null;
                                                 let val = cell;
                                                 
-                                                // 1. 處理 Excel 數字序列 (如 45326)
                                                 if(typeof val === 'number' && val > 30000) {
-                                                    // Excel 日期起點 1900-01-01 (JS 需扣除 25569 天)
                                                     const jsDate = new Date((val - 25569) * 86400 * 1000);
                                                     parsed = formatDate(jsDate);
                                                 } else {
-                                                    // 2. 處理字串格式
-                                                    const s = String(val).trim().replace(/\s/g, ''); // 去空白
+                                                    const s = String(val).trim().replace(/\s/g, ''); 
                                                     if(s.match(/^\d{1,2}[-\/]\d{1,2}$/)) { 
-                                                        // 格式: 2/4 或 2-4 -> 自動補年
                                                         const now = new Date(); 
                                                         parsed = `${now.getFullYear()}-${s.replace(/\//g,'-')}`; 
                                                     } else if(s.match(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/)) {
-                                                        // 格式: 2026/2/4 -> 轉為 -
                                                         parsed = s.replace(/\//g, '-');
                                                     }
                                                 }
@@ -749,7 +749,8 @@
                                     if(dateCols.length > 0) {
                                         dateCols.forEach((dc, idx) => {
                                             const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
-                                            newSessions.push({ id: Date.now() + idx, date: dc.dateStr, type: 'normal', isRollCallDone: false, records: records });
+                                            // 修改 4: 匯入時增加 note
+                                            newSessions.push({ id: Date.now() + idx, date: dc.dateStr, type: 'normal', note: '', isRollCallDone: false, records: records });
                                         });
                                     } else {
                                         const start = new Date();
@@ -757,7 +758,8 @@
                                             let d = new Date(start); d.setDate(start.getDate() + k*7);
                                             const dStr = formatDate(d);
                                             const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
-                                            newSessions.push({ id: Date.now() + k, date: dStr, type: 'normal', isRollCallDone: false, records: records });
+                                            // 修改 5: 匯入預設時增加 note
+                                            newSessions.push({ id: Date.now() + k, date: dStr, type: 'normal', note: '', isRollCallDone: false, records: records });
                                         }
                                     }
                                 }
@@ -971,7 +973,7 @@
                 });
 
                 watch(globalStep, (val) => { if (val > 5) globalStep.value = 5; if (val < 1) globalStep.value = 1; });
-                const handleCalendarClick = (day) => { const s = sessions.value.find(x => x.date === day.dateStr); if(s) { actionModal.session = s; actionModal.date = day.dateStr; actionModal.show = true; } else if(confirm(`新增 ${day.dateStr} 課程?`)) { sessions.value.push({id: Date.now(), date: day.dateStr, type: 'normal', records: studentList.value.map(st=>({...st, status:'', statusNote:'', score:0, logs:[]}))}); nextTick(()=> currentSessionIndex.value = sortedSessions.value.findIndex(x=>x.date===day.dateStr)); } };
+                const handleCalendarClick = (day) => { const s = sessions.value.find(x => x.date === day.dateStr); if(s) { actionModal.session = s; actionModal.date = day.dateStr; actionModal.show = true; } else if(confirm(`新增 ${day.dateStr} 課程?`)) { sessions.value.push({id: Date.now(), date: day.dateStr, type: 'normal', note: '', records: studentList.value.map(st=>({...st, status:'', statusNote:'', score:0, logs:[]}))}); nextTick(()=> currentSessionIndex.value = sortedSessions.value.findIndex(x=>x.date===day.dateStr)); } };
                 const openSuspendModal = () => { actionModal.show = false; suspendModal.reason = '國定假日'; suspendModal.show = true; nextTick(() => suspendInput.value && suspendInput.value.focus()); };
                 const openRescheduleModalFromAction = () => { actionModal.show = false; rescheduleModal.newDate = ''; rescheduleModal.show = true; };
                 const confirmSuspend = () => { if(actionModal.session) { actionModal.session.type = 'holiday'; actionModal.session.holidayReason = suspendModal.reason; } suspendModal.show = false; };
@@ -981,7 +983,7 @@
                     if(conflict) return alert(`日期 ${rescheduleModal.newDate} 已有課程！`);
                     const original = actionModal.session; original.type = 'rescheduled'; original.rescheduledTo = rescheduleModal.newDate;
                     const records = studentList.value.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
-                    sessions.value.push({ id: Date.now(), date: rescheduleModal.newDate, type: 'makeup', isRollCallDone: false, records: records });
+                    sessions.value.push({ id: Date.now(), date: rescheduleModal.newDate, type: 'makeup', note: '', isRollCallDone: false, records: records });
                     rescheduleModal.show = false;
                 };
                 const resetToNormal = (s) => { if(confirm("確定要恢復為正常上課嗎？")) { s.type = 'normal'; s.holidayReason = ''; s.rescheduledTo = ''; } };
