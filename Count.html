@@ -232,11 +232,15 @@
                                         {{ currentSession.date }} 
                                         <span v-if="currentSession.type === 'makeup'" class="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded ml-2">補課</span>
                                     </span>
-                                    <div class="ml-3 group relative">
-                                        <i class="fa-solid fa-pen text-[10px] text-gray-300 absolute left-0 top-1/2 -translate-y-1/2"></i>
-                                        <input type="text" v-model="currentSession.note" placeholder="課程備註..." class="pl-4 py-0.5 text-xs bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:outline-none text-gray-600 w-32 transition placeholder-gray-300">
+                                    
+                                    <div class="ml-3 group relative inline-grid items-center">
+                                        <span class="col-start-1 row-start-1 invisible whitespace-pre px-4 py-0.5 text-xs border-b border-transparent font-sans">{{ currentSession.note || '課程備註...' }}</span>
+                                        
+                                        <i class="fa-solid fa-pen text-[10px] text-gray-300 absolute left-0 top-1/2 -translate-y-1/2 z-10 pointer-events-none"></i>
+                                        <input type="text" v-model="currentSession.note" placeholder="課程備註..." 
+                                               class="col-start-1 row-start-1 w-full pl-4 py-0.5 text-xs bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:outline-none text-gray-600 transition placeholder-gray-300 font-sans">
                                     </div>
-                                </div>
+                                    </div>
                                 <span class="text-xs text-gray-400 font-medium">{{ getWeekDayName(currentSession.date) }}</span>
                             </div>
                         </div>
@@ -633,37 +637,40 @@
                                 let newSessions = [];
 
                                 if (isBackupFile) {
-                                    // V38: 解析調課與停課資訊 (備份還原)
+                                    // V38.5 修正：備份檔的解析邏輯，確保所有欄位都被檢查標籤
                                     const dateMap = new Map();
                                     headerRow.forEach((cell, idx) => {
                                         const cellStr = String(cell).trim();
-                                        // 匹配: 2026-02-04 或 2026/02/04
+                                        // 匹配日期 pattern
                                         const dateMatch = cellStr.match(/(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/);
                                         if(dateMatch) {
                                             const dStr = dateMatch[1].replace(/\//g, '-'); 
-                                            if(!dateMap.has(dStr)) {
-                                                let meta = { statusIdx: -1, noteIdx: -1, type: 'normal', holidayReason: '', rescheduledTo: '', note: '' };
-                                                
-                                                // 解析各種標籤
-                                                if(cellStr.includes('[停課')) {
-                                                    meta.type = 'holiday';
-                                                    const reasonMatch = cellStr.match(/\[停課:(.*?)\]/);
-                                                    if(reasonMatch) meta.holidayReason = reasonMatch[1];
-                                                } else if(cellStr.includes('[調課')) {
-                                                    meta.type = 'rescheduled';
-                                                    const newDateMatch = cellStr.match(/\[調課:(.*?)\]/);
-                                                    if(newDateMatch) meta.rescheduledTo = newDateMatch[1];
-                                                } else if(cellStr.includes('[補課')) {
-                                                    meta.type = 'makeup';
-                                                }
-
-                                                // 解析備註
-                                                const noteMatch = cellStr.match(/\[備註:(.*?)\]/);
-                                                if(noteMatch) meta.note = noteMatch[1];
-
+                                            
+                                            // 確保 meta 存在
+                                            let meta = dateMap.get(dStr);
+                                            if (!meta) {
+                                                meta = { statusIdx: -1, noteIdx: -1, type: 'normal', holidayReason: '', rescheduledTo: '', note: '' };
                                                 dateMap.set(dStr, meta);
                                             }
-                                            const meta = dateMap.get(dStr);
+
+                                            // 每次都檢查是否有標籤 (因為標籤可能只出現在其中一欄)
+                                            if(cellStr.includes('[停課')) {
+                                                meta.type = 'holiday';
+                                                const reasonMatch = cellStr.match(/\[停課:(.*?)\]/);
+                                                if(reasonMatch) meta.holidayReason = reasonMatch[1];
+                                            } else if(cellStr.includes('[調課')) {
+                                                meta.type = 'rescheduled';
+                                                const newDateMatch = cellStr.match(/\[調課:(.*?)\]/);
+                                                if(newDateMatch) meta.rescheduledTo = newDateMatch[1];
+                                            } else if(cellStr.includes('[補課')) {
+                                                meta.type = 'makeup';
+                                            }
+
+                                            // V38.5 修正：強制解析 Note
+                                            const noteMatch = cellStr.match(/\[備註:(.*?)\]/);
+                                            if(noteMatch) meta.note = noteMatch[1];
+
+                                            // 設定 index
                                             if(cellStr.includes('狀態')) meta.statusIdx = idx;
                                             else if(cellStr.includes('備註') || cellStr.includes('評分')) meta.noteIdx = idx;
                                         }
@@ -720,7 +727,7 @@
                                     });
 
                                 } else {
-                                    // --- 普通名單匯入 (強化日期偵測) ---
+                                    // --- 普通名單匯入 (強化日期偵測 V38.5) ---
                                     let dateRowIndices = [headerRowIdx];
                                     if(headerRowIdx > 0) dateRowIndices.unshift(headerRowIdx-1);
                                     let dateCols = [];
@@ -730,22 +737,34 @@
                                         row.forEach((cell, cIdx) => {
                                             if(cIdx !== nameColIdx && cIdx !== sidColIdx) {
                                                 let parsed = null;
+                                                let extractedNote = '';
                                                 let val = cell;
                                                 
                                                 if(typeof val === 'number' && val > 30000) {
                                                     const jsDate = new Date((val - 25569) * 86400 * 1000);
                                                     parsed = formatDate(jsDate);
                                                 } else {
-                                                    const s = String(val).trim().replace(/\s/g, ''); 
-                                                    if(s.match(/^\d{1,2}[-\/]\d{1,2}$/)) { 
-                                                        const now = new Date(); 
-                                                        parsed = `${now.getFullYear()}-${s.replace(/\//g,'-')}`; 
-                                                    } else if(s.match(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/)) {
-                                                        parsed = s.replace(/\//g, '-');
+                                                    const s = String(val).trim();
+                                                    
+                                                    // V38.5: 先嘗試抓取備註
+                                                    const nMatch = s.match(/\[備註:(.*?)\]/);
+                                                    if(nMatch) extractedNote = nMatch[1];
+
+                                                    // V38.5: 使用 regex 在字串中搜尋日期 (忽略前後雜訊)
+                                                    let dMatch = s.match(/(\d{4}[-\/]\d{1,2}[-\/]\d{1,2})/);
+                                                    if(!dMatch) dMatch = s.match(/(\d{1,2}[-\/]\d{1,2})/);
+
+                                                    if(dMatch) {
+                                                        let dRaw = dMatch[1].replace(/\//g,'-');
+                                                        // 補年
+                                                        if(dRaw.match(/^\d{1,2}-\d{1,2}$/)) {
+                                                            dRaw = `${new Date().getFullYear()}-${dRaw}`;
+                                                        }
+                                                        parsed = dRaw;
                                                     }
                                                 }
 
-                                                if(parsed) dateCols.push({ dateStr: parsed });
+                                                if(parsed) dateCols.push({ dateStr: parsed, note: extractedNote });
                                             }
                                         });
                                         if(dateCols.length > 1) break; 
@@ -754,7 +773,7 @@
                                     if(dateCols.length > 0) {
                                         dateCols.forEach((dc, idx) => {
                                             const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
-                                            newSessions.push({ id: Date.now() + idx, date: dc.dateStr, type: 'normal', note: '', isRollCallDone: false, records: records });
+                                            newSessions.push({ id: Date.now() + idx, date: dc.dateStr, type: 'normal', note: dc.note || '', isRollCallDone: false, records: records });
                                         });
                                     } else {
                                         const start = new Date();
