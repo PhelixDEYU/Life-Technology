@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>課堂點名系統</title>
+    <title>課堂點名系統 V38.2 (日期修正版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -53,7 +53,6 @@
         }
         
         /* 針對總覽表格的固定 (行列凍結) */
-        /* 修正：移除這裡的強制白色背景，改在 HTML class 中設定，以便讓橘色背景能覆蓋 */
         .sticky-top-header th { 
             position: sticky; 
             top: 0; 
@@ -147,7 +146,6 @@
         :class="{
             'border-red-100 hover:bg-red-50': h.type === 'holiday',
             'border-orange-100 hover:bg-orange-50': h.type === 'rescheduled',
-            /* 修正：將補課的邊框與互動背景改為綠色 */
             'border-emerald-100 hover:bg-emerald-50': h.type === 'makeup'
         }">
         <div class="flex-1 cursor-pointer" @click="jumpToDate(h.date)">
@@ -156,7 +154,6 @@
                   :class="{
                       'text-red-500': h.type === 'holiday',
                       'text-orange-500': h.type === 'rescheduled',
-                      /* 修正：將補課文字改為綠色 */
                       'text-emerald-500': h.type === 'makeup'
                   }">
                 {{ h.type === 'holiday' ? '停課' : (h.type === 'rescheduled' ? '已調課' : '補課') }}
@@ -406,9 +403,9 @@
                                         class="border-b border-r border-gray-300 p-2 min-w-[80px] font-mono text-xs text-center cursor-pointer hover:bg-gray-200 transition bg-white"
                                         :class="{
                                             '!bg-red-50 text-red-600': s.type==='holiday', 
-        '!bg-orange-50 text-orange-600': s.type==='rescheduled', // 調課標題 (橘底橘字)
-        '!bg-emerald-50 text-emerald-600': s.type==='makeup'     // 補課標題 (綠底綠字)
-    }"
+                                            '!bg-orange-50 text-orange-600': s.type==='rescheduled', 
+                                            '!bg-emerald-50 text-emerald-600': s.type==='makeup'
+                                        }"
                                         @click="jumpToDateFromOverview(s.date)">
                                         {{ s.date }}<br>
                                         <span v-if="s.type==='holiday'">停</span>
@@ -425,23 +422,22 @@
                                     <td class="border-b border-r border-gray-300 p-2 text-center font-bold text-indigo-600">{{ calculateStudentTotal(st.sid) }}</td>
                                     <td v-for="s in sortedSessions" :key="s.id" 
                                         class="border-b border-r border-gray-300 p-2 text-center text-xs cursor-pointer hover:bg-indigo-50 transition"
-    :class="{
-        'bg-red-50': s.type==='holiday', 
-        'bg-orange-50': s.type==='rescheduled',
-        /* 這裡移除了 makeup 的背景色，使其保持預設白色 */
-        'bg-yellow-50': hasActivity(s, st.sid) && s.type !== 'rescheduled' && s.type !== 'holiday'
-    }"
-    @click="jumpToDateFromOverview(s.date)">
-    
-    <div v-if="(s.type==='normal' || s.type==='makeup') && shouldShowRecord(s)">
-        <div v-if="getRecord(s, st.sid).status !== 'present' && getRecord(s, st.sid).status !== ''" class="inline-block px-1.5 rounded text-white mb-1" :class="{'bg-red-500': getRecord(s, st.sid).status==='absent','bg-yellow-500': getRecord(s, st.sid).status==='late','bg-blue-400': getRecord(s, st.sid).status==='leave'}">{{ getStatusLabel(getRecord(s, st.sid).status) }}</div>
-        <div v-else-if="getRecord(s, st.sid).status === 'present'" class="text-green-500 font-bold">V</div>
-        <div v-else class="text-gray-300">-</div>
-        <div v-if="getRecord(s, st.sid).score !== 0" class="font-bold block mt-1" :class="getRecord(s, st.sid).score > 0 ? 'text-green-600' : 'text-red-600'">{{ getRecord(s, st.sid).score > 0 ? '+' : '' }}{{ getRecord(s, st.sid).score }}</div>
-    </div>
-    <div v-else-if="s.type==='normal' || s.type==='makeup'" class="text-gray-200">/</div>
-    <div v-else class="text-gray-200">/</div>
-</td>
+                                        :class="{
+                                            'bg-red-50': s.type==='holiday', 
+                                            'bg-orange-50': s.type==='rescheduled',
+                                            'bg-yellow-50': hasActivity(s, st.sid) && s.type !== 'rescheduled' && s.type !== 'holiday'
+                                        }"
+                                        @click="jumpToDateFromOverview(s.date)">
+                                        
+                                        <div v-if="(s.type==='normal' || s.type==='makeup') && shouldShowRecord(s)">
+                                            <div v-if="getRecord(s, st.sid).status !== 'present' && getRecord(s, st.sid).status !== ''" class="inline-block px-1.5 rounded text-white mb-1" :class="{'bg-red-500': getRecord(s, st.sid).status==='absent','bg-yellow-500': getRecord(s, st.sid).status==='late','bg-blue-400': getRecord(s, st.sid).status==='leave'}">{{ getStatusLabel(getRecord(s, st.sid).status) }}</div>
+                                            <div v-else-if="getRecord(s, st.sid).status === 'present'" class="text-green-500 font-bold">V</div>
+                                            <div v-else class="text-gray-300">-</div>
+                                            <div v-if="getRecord(s, st.sid).score !== 0" class="font-bold block mt-1" :class="getRecord(s, st.sid).score > 0 ? 'text-green-600' : 'text-red-600'">{{ getRecord(s, st.sid).score > 0 ? '+' : '' }}{{ getRecord(s, st.sid).score }}</div>
+                                        </div>
+                                        <div v-else-if="s.type==='normal' || s.type==='makeup'" class="text-gray-200">/</div>
+                                        <div v-else class="text-gray-200">/</div>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -573,7 +569,7 @@
 
                 const triggerFileUpload = () => fileInput.value.click();
                 
-                // --- V38 核心：強化版匯入邏輯 (含導師與調課還原) ---
+                // --- V38.2 核心修正：強化版匯入邏輯 (含日期修正) ---
                 const handleFileUpload = (e) => {
                     const file = e.target.files[0];
                     if(!file) return;
@@ -635,7 +631,7 @@
                                 let newSessions = [];
 
                                 if (isBackupFile) {
-                                    // V38: 解析調課與停課資訊
+                                    // V38: 解析調課與停課資訊 (備份還原)
                                     const dateMap = new Map();
                                     headerRow.forEach((cell, idx) => {
                                         const cellStr = String(cell).trim();
@@ -644,10 +640,7 @@
                                         if(dateMatch) {
                                             const dStr = dateMatch[1].replace(/\//g, '-'); 
                                             if(!dateMap.has(dStr)) {
-                                                // 初始化 session 資訊，預設 normal
                                                 let meta = { statusIdx: -1, noteIdx: -1, type: 'normal', holidayReason: '', rescheduledTo: '' };
-                                                
-                                                // 讀取標題中的 Metadata: [停課:原因] [調課:日期] [補課]
                                                 if(cellStr.includes('[停課')) {
                                                     meta.type = 'holiday';
                                                     const reasonMatch = cellStr.match(/\[停課:(.*?)\]/);
@@ -659,10 +652,8 @@
                                                 } else if(cellStr.includes('[補課')) {
                                                     meta.type = 'makeup';
                                                 }
-
                                                 dateMap.set(dStr, meta);
                                             }
-                                            
                                             const meta = dateMap.get(dStr);
                                             if(cellStr.includes('狀態')) meta.statusIdx = idx;
                                             else if(cellStr.includes('備註') || cellStr.includes('評分')) meta.noteIdx = idx;
@@ -672,8 +663,6 @@
                                     const sortedDates = Array.from(dateMap.keys()).sort((a,b) => new Date(a) - new Date(b));
                                     sortedDates.forEach((dStr, sIdx) => {
                                         const meta = dateMap.get(dStr);
-                                        
-                                        // 建立學生的 records
                                         const records = newStudents.map((st, stIdx) => {
                                             const row = rows[headerRowIdx + 1 + stIdx];
                                             let status = '';
@@ -687,7 +676,6 @@
                                                 else if(val === '遲到') status = 'late';
                                                 else if(val === '公假') status = 'leave';
                                                 else if(val === 'V') status = 'present';
-                                                // 空白維持未定
                                             }
 
                                             if(meta.noteIdx !== -1) {
@@ -710,7 +698,6 @@
                                         });
 
                                         const isDone = records.some(r => r.status !== '' || r.score !== 0 || r.logs.length > 0);
-
                                         newSessions.push({
                                             id: Date.now() + sIdx,
                                             date: dStr,
@@ -723,27 +710,42 @@
                                     });
 
                                 } else {
-                                    // 普通名單匯入 (無變化)
+                                    // --- 普通名單匯入 (強化日期偵測) ---
                                     let dateRowIndices = [headerRowIdx];
                                     if(headerRowIdx > 0) dateRowIndices.unshift(headerRowIdx-1);
                                     let dateCols = [];
+                                    
                                     for(let rIdx of dateRowIndices) {
                                         const row = rows[rIdx];
                                         row.forEach((cell, cIdx) => {
                                             if(cIdx !== nameColIdx && cIdx !== sidColIdx) {
                                                 let parsed = null;
-                                                const s = String(cell).trim();
-                                                if(s.match(/^\d{1,2}[-\/]\d{1,2}$/)) { 
-                                                    const now = new Date(); 
-                                                    parsed = `${now.getFullYear()}-${s.replace('/','-')}`; 
-                                                } else if(s.match(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/)) {
-                                                    parsed = s.replace(/\//g, '-');
+                                                let val = cell;
+                                                
+                                                // 1. 處理 Excel 數字序列 (如 45326)
+                                                if(typeof val === 'number' && val > 30000) {
+                                                    // Excel 日期起點 1900-01-01 (JS 需扣除 25569 天)
+                                                    const jsDate = new Date((val - 25569) * 86400 * 1000);
+                                                    parsed = formatDate(jsDate);
+                                                } else {
+                                                    // 2. 處理字串格式
+                                                    const s = String(val).trim().replace(/\s/g, ''); // 去空白
+                                                    if(s.match(/^\d{1,2}[-\/]\d{1,2}$/)) { 
+                                                        // 格式: 2/4 或 2-4 -> 自動補年
+                                                        const now = new Date(); 
+                                                        parsed = `${now.getFullYear()}-${s.replace(/\//g,'-')}`; 
+                                                    } else if(s.match(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/)) {
+                                                        // 格式: 2026/2/4 -> 轉為 -
+                                                        parsed = s.replace(/\//g, '-');
+                                                    }
                                                 }
+
                                                 if(parsed) dateCols.push({ dateStr: parsed });
                                             }
                                         });
                                         if(dateCols.length > 1) break; 
                                     }
+
                                     if(dateCols.length > 0) {
                                         dateCols.forEach((dc, idx) => {
                                             const records = newStudents.map(s => ({ ...s, status: '', statusNote: '', score: 0, logs: [] }));
@@ -823,24 +825,16 @@
                     }
                 };
 
-                // --- V38 核心：強化版匯出 (加入導師與 Metadata) ---
                 const exportToExcel = () => {
                     const wb = XLSX.utils.book_new();
                     const sData = sessions.value;
                     const cStudents = studentList.value;
-                    
-                    // 1. 建立標題列 (班級與導師)
                     const titleRow = [currentClassKey.value, `導師: ${currentTeacher.value || ''}`];
-                    
-                    // 2. 建立 Header Row，將異動資訊寫入日期欄
                     const header = ['學號', '姓名', '總分'];
-                    
-                    // 3. 預先計算總分
                     const studentScores = {};
                     cStudents.forEach(s => studentScores[s.sid] = calculateStudentTotal(s.sid));
                     
                     sData.forEach(sess => {
-                        // 不論是 normal/holiday/makeup 都匯出，以便還原
                         let dateLabel = sess.date;
                         if(sess.type === 'holiday') dateLabel += ` [停課:${sess.holidayReason}]`;
                         else if(sess.type === 'rescheduled') dateLabel += ` [調課:${sess.rescheduledTo}]`;
@@ -849,8 +843,7 @@
                         header.push(`${dateLabel} 狀態`, `${dateLabel} 備註/評分`);
                     });
                     
-                    const rows = [titleRow, header]; // 標題列 + 表頭
-
+                    const rows = [titleRow, header]; 
                     cStudents.forEach(st => {
                         const row = [st.sid, st.name, studentScores[st.sid]];
                         sData.forEach(sess => {
@@ -858,12 +851,10 @@
                             if(rec) {
                                 const statusMap = {present:'V', absent:'缺席', late:'遲到', leave:'公假', '':' - '};
                                 row.push(statusMap[rec.status] || '-');
-                                
                                 const notes = rec.logs.map(l => `${l.reason}(${l.amount})`).join('; ');
                                 let finalNote = notes;
                                 if(rec.statusNote) finalNote = `[假由:${rec.statusNote}] ` + finalNote;
                                 if(!finalNote && rec.status === 'present') finalNote = '-';
-                                
                                 row.push(finalNote || '-');
                             } else { row.push('-', '-'); }
                         });
@@ -882,7 +873,6 @@
                         const sData = cls.sessions;
                         const cStudents = cls.students;
                         const teacherName = cls.teacher;
-
                         const titleRow = [className, `導師: ${teacherName || ''}`];
                         const header = ['學號', '姓名', '總分'];
                         const studentScores = {};
@@ -894,7 +884,6 @@
                             });
                             studentScores[s.sid] = total;
                         });
-                        
                         sData.forEach(sess => { 
                             let dateLabel = sess.date;
                             if(sess.type === 'holiday') dateLabel += ` [停課:${sess.holidayReason}]`;
@@ -902,7 +891,6 @@
                             else if(sess.type === 'makeup') dateLabel += ` [補課]`;
                             header.push(`${dateLabel} 狀態`, `${dateLabel} 備註/評分`); 
                         });
-                        
                         const rows = [titleRow, header];
                         cStudents.forEach(st => {
                             const row = [st.sid, st.name, studentScores[st.sid]];
@@ -940,7 +928,6 @@
                 const calculateStudentTotal = (sid) => { 
                     let total = 80; 
                     sessions.value.forEach(s => { 
-                        // Count all scores for backup accuracy
                         const rec = s.records.find(r=>r.sid===sid); 
                         if(rec) total += rec.score; 
                     }); 
