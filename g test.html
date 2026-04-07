@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>結構強度測試成績系統</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -93,19 +94,15 @@
             background-color: var(--accent-hover);
         }
 
-        .btn-export {
-            background-color: #2980b9;
-        }
-        .btn-export:hover {
-            background-color: #3498db;
-        }
+        .btn-export { background-color: #2980b9; }
+        .btn-export:hover { background-color: #3498db; }
 
-        .btn-clear {
-            background-color: #e74c3c;
-        }
-        .btn-clear:hover {
-            background-color: #c0392b;
-        }
+        /* 修改為圖片匯出按鈕的樣式 */
+        .btn-image { background-color: #8e44ad; }
+        .btn-image:hover { background-color: #9b59b6; }
+
+        .btn-clear { background-color: #e74c3c; }
+        .btn-clear:hover { background-color: #c0392b; }
 
         .table-responsive {
             width: 100%;
@@ -155,25 +152,16 @@
             background-color: #e8f8f5;
         }
 
-        .rank-1 { background-color: #fff8e1; font-weight: bold; }
-        .rank-2 { background-color: #f5f5f5; font-weight: bold; }
-        .rank-3 { background-color: #efebe9; font-weight: bold; }
+        /* 確保匯出圖片時顏色權重足夠 */
+        .rank-1 { background-color: #fff8e1 !important; font-weight: bold; }
+        .rank-2 { background-color: #f5f5f5 !important; font-weight: bold; }
+        .rank-3 { background-color: #efebe9 !important; font-weight: bold; }
 
         @media (max-width: 768px) {
-            .control-row {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .button-group {
-                flex-direction: column;
-            }
-            th, td {
-                padding: 10px 5px;
-                font-size: 14px;
-            }
-            input[type="number"] {
-                width: 60px;
-            }
+            .control-row { flex-direction: column; align-items: stretch; }
+            .button-group { flex-direction: column; }
+            th, td { padding: 10px 5px; font-size: 14px; }
+            input[type="number"] { width: 60px; }
         }
     </style>
 </head>
@@ -189,20 +177,21 @@
             </div>
             
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="🔍 輸入完整姓名或組別 (如: 5, 王小明)..." onkeyup="filterTable()">
+                <input type="text" id="searchInput" placeholder="🔍 輸入完整姓名或組別..." onkeyup="filterTable()">
             </div>
         </div>
 
         <div class="control-row" style="justify-content: flex-end;">
             <div class="button-group">
                 <button onclick="calculateAndRank()">📊 計算成績與排名</button>
+                <button class="btn-image" onclick="exportToImage()">🖼️ 匯出排名圖片</button>
                 <button class="btn-export" onclick="exportToExcel()">📥 匯出成績檔</button>
                 <button class="btn-clear" onclick="clearData()">🗑️ 清除所有資料</button>
             </div>
         </div>
     </div>
 
-    <div class="table-responsive">
+    <div class="table-responsive" id="tableContainer">
         <table id="scoreTable">
             <thead>
                 <tr>
@@ -351,13 +340,20 @@
                 const tr = document.createElement('tr');
                 tr.id = `row_${data.id}`; 
                 
-                if (data.rank === 1) tr.className = 'rank-1';
-                else if (data.rank === 2) tr.className = 'rank-2';
-                else if (data.rank === 3) tr.className = 'rank-3';
+                let rankDisplay = data.rank;
+                if (data.rank === 1) {
+                    tr.className = 'rank-1';
+                    rankDisplay = '👑 1';
+                } else if (data.rank === 2) {
+                    tr.className = 'rank-2';
+                    rankDisplay = '💎 2';
+                } else if (data.rank === 3) {
+                    tr.className = 'rank-3';
+                    rankDisplay = '🏅 3';
+                }
 
-                // 這裡的順序調整為：載重 -> 塔重
                 tr.innerHTML = `
-                    <td>${data.rank}</td>
+                    <td>${rankDisplay}</td>
                     <td>${data.groupName}</td>
                     <td>${data.members}</td>
                     <td><input type="number" id="payload_${data.id}" value="${data.payload || ''}"></td>
@@ -498,6 +494,88 @@
 
             saveToLocalStorage(); 
             renderTable();
+        }
+
+        // ===== 完美還原網頁設計的圖片截圖匯出 =====
+        function exportToImage() {
+            if (groupData.length === 0) {
+                alert("目前沒有資料可以匯出喔！請先匯入名單。");
+                return;
+            }
+
+            // 確保資料是最新的
+            calculateAndRank();
+            // 先清除所有搜尋過濾，確保匯出的是完整名單
+            document.getElementById('searchInput').value = '';
+            filterTable();
+
+            // 1. 建立一個專門用來截圖的隱藏容器
+            const imageContainer = document.createElement('div');
+            // 設定固定寬度和網頁相同的背景色，確保截圖排版不會跑位
+            imageContainer.style.width = '1000px'; 
+            imageContainer.style.padding = '40px';
+            imageContainer.style.backgroundColor = '#f4f7f6'; 
+            imageContainer.style.position = 'absolute';
+            imageContainer.style.left = '-9999px';
+            imageContainer.style.top = '0';
+            imageContainer.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+            // 2. 複製網頁上的大標題
+            const title = document.createElement('h1');
+            title.innerText = '🏆 結構強度測試成績排行榜';
+            title.style.textAlign = 'center';
+            title.style.color = '#2c3e50';
+            title.style.fontSize = '32px';
+            title.style.marginBottom = '30px';
+            imageContainer.appendChild(title);
+
+            // 3. 複製表格的精美外框 (帶有圓角和陰影)
+            const tableWrapper = document.createElement('div');
+            // 套用與網頁相同的 class，但強制移除 overflow，讓表格能完整長高不被切斷
+            tableWrapper.className = 'table-responsive';
+            tableWrapper.style.overflow = 'visible'; 
+            tableWrapper.style.boxShadow = '0 4px 15px rgba(0,0,0,0.1)';
+            tableWrapper.style.backgroundColor = '#fff';
+            tableWrapper.style.borderRadius = '12px';
+
+            // 4. 深度複製真實的表格 (包含所有帶有前三名顏色的 class)
+            const originalTable = document.getElementById('scoreTable');
+            const clonedTable = originalTable.cloneNode(true);
+            
+            // 5. 將複製表格內的「輸入框」轉換為「純文字」，畫面才好看
+            const inputs = clonedTable.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+                const value = input.value;
+                const parentTd = input.parentNode;
+                // 用值取代 input 元素
+                parentTd.innerHTML = value ? value : '-';
+            });
+
+            // 組裝截圖區塊
+            tableWrapper.appendChild(clonedTable);
+            imageContainer.appendChild(tableWrapper);
+            document.body.appendChild(imageContainer);
+
+            // 6. 使用 html2canvas 進行高畫質截圖，並直接轉換為圖片下載
+            html2canvas(imageContainer, {
+                scale: 2, // 提高解析度
+                useCORS: true,
+                windowWidth: 1080,
+                backgroundColor: '#f4f7f6' // 確保背景顏色與設定一致
+            }).then(canvas => {
+                // 建立一個隱藏的 <a> 標籤來觸發圖片下載
+                const link = document.createElement('a');
+                link.download = '結構強度測試成績排行榜.png';
+                link.href = canvas.toDataURL('image/png'); // 轉換為 PNG 格式
+                link.click();
+                
+                // 下載完成後移除隱藏的截圖區塊
+                document.body.removeChild(imageContainer);
+            }).catch(error => {
+                console.error("圖片匯出失敗：", error);
+                alert("圖片匯出時發生錯誤，請稍後再試。");
+                document.body.removeChild(imageContainer);
+            });
         }
 
         function exportToExcel() {
