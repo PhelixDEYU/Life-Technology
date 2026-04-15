@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Countdown Timer - Repeat Alarm</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #38bdf8;
+            --input-focus-color: #ffffff;
+            --btn-start: #22c55e;
+            --btn-stop: #ef4444;
+        }
+        body {
+            margin: 0; background: var(--bg-color); color: var(--text-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+            display: flex; flex-direction: column;
+            height: 100vh; justify-content: center; align-items: center; overflow: hidden;
+        }
+
+        .timer-wrapper {
+            display: flex; align-items: center; justify-content: center;
+            font-variant-numeric: tabular-nums;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .unit-box {
+            position: relative;
+            width: 40vw; 
+            height: 30vw;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .time-display, .time-input {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            font-size: 28vw;
+            font-weight: 900;
+            font-family: inherit;
+            margin: 0; padding: 0;
+            border: none; outline: none; background: transparent;
+        }
+
+        .time-display {
+            cursor: pointer;
+            transition: color 0.2s;
+            z-index: 2;
+        }
+        .time-display:hover { color: white; }
+
+        .time-input {
+            color: var(--input-focus-color);
+            z-index: 1;
+            opacity: 0;
+            -moz-appearance: textfield;
+        }
+        .time-input::-webkit-outer-spin-button,
+        .time-input::-webkit-inner-spin-button {
+            -webkit-appearance: none; margin: 0;
+        }
+
+        .editing .time-display { opacity: 0; pointer-events: none; }
+        .editing .time-input { opacity: 1; z-index: 3; }
+
+        .separator {
+            font-size: 20vw; font-weight: 900;
+            width: 10vw; 
+            text-align: center;
+            padding-bottom: 4vw;
+        }
+
+        .ui-container {
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%;
+        }
+
+        .controls { 
+            display: flex; gap: 20px; 
+            margin-bottom: 50px; 
+        }
+        button {
+            padding: 18px 50px; font-size: 1.8rem; border-radius: 60px;
+            border: none; cursor: pointer; transition: 0.2s; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        button:active { transform: scale(0.95); }
+        .btn-start { background: var(--btn-start); color: white; }
+        .btn-reset { background: #64748b; color: white; }
+
+        .music-panel {
+            background: rgba(255,255,255,0.05);
+            padding: 15px 30px; border-radius: 15px;
+            display: flex; align-items: center; gap: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .music-panel input {
+            background: #1e293b; border: 1px solid #334155; color: #fff;
+            padding: 12px; border-radius: 8px; width: 250px; font-size: 1rem;
+        }
+
+        .hint { margin-top: 25px; color: #475569; font-size: 0.9rem; }
+        #youtube-player { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="timer-wrapper">
+        <div id="min-box" class="unit-box">
+            <div id="min-display" class="time-display" onclick="startEdit('min')">05</div>
+            <input type="number" id="min-input" class="time-input" onblur="endEdit('min')" onkeyup="keyEv(event, 'min')">
+        </div>
+
+        <div class="separator">:</div>
+
+        <div id="sec-box" class="unit-box">
+            <div id="sec-display" class="time-display" onclick="startEdit('sec')">00</div>
+            <input type="number" id="sec-input" class="time-input" onblur="endEdit('sec')" onkeyup="keyEv(event, 'sec')">
+        </div>
+    </div>
+
+    <div class="ui-container">
+        <div class="controls">
+            <button class="btn-start" id="startBtn" onclick="toggleTimer()">開始計時</button>
+            <button class="btn-reset" onclick="resetTimer()">重設</button>
+        </div>
+
+        <div class="music-panel">
+            <span style="font-size: 1.1rem;">🎵 背景音樂 YouTube ID:</span>
+            <input type="text" id="yt-id" placeholder="例如：dQw4w9WgXcQ">
+        </div>
+        
+        <div class="hint">點擊數字直接輸入 | 雙擊背景進入全螢幕</div>
+    </div>
+
+    <div id="youtube-player"></div>
+    
+    <audio id="alarm-sound" loop preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        let timeLeft = 300; 
+        let initialTime = 300; 
+        let timer = null;
+        let isRunning = false;
+        let player;
+        const alarm = document.getElementById('alarm-sound');
+
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function updateDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.getElementById('min-display').innerText = m.toString().padStart(2, '0');
+            document.getElementById('sec-display').innerText = s.toString().padStart(2, '0');
+        }
+
+        function startEdit(type) {
+            if (isRunning) return;
+            stopAlarm(); 
+            const box = document.getElementById(`${type}-box`);
+            const input = document.getElementById(`${type}-input`);
+            const display = document.getElementById(`${type}-display`);
+            
+            box.classList.add('editing');
+            input.value = display.innerText;
+            input.focus();
+            input.select();
+        }
+
+        function endEdit(type) {
+            const box = document.getElementById(`${type}-box`);
+            const input = document.getElementById(`${type}-input`);
+            let val = parseInt(input.value) || 0;
+            if (type === 'sec' && val >= 60) val = 59;
+            box.classList.remove('editing');
+            const currentM = type === 'min' ? val : Math.floor(timeLeft / 60);
+            const currentS = type === 'sec' ? val : timeLeft % 60;
+            timeLeft = currentM * 60 + currentS;
+            initialTime = timeLeft; 
+            updateDisplay();
+        }
+
+        function keyEv(e, type) { if (e.key === 'Enter') endEdit(type); }
+
+        function toggleTimer() {
+            const btn = document.getElementById('startBtn');
+            stopAlarm(); 
+            if (isRunning) {
+                clearInterval(timer);
+                if (player) player.pauseVideo();
+                btn.innerText = "繼續計時";
+                btn.style.background = "var(--btn-start)";
+            } else {
+                if (timeLeft <= 0) return;
+                const ytId = document.getElementById('yt-id').value.trim();
+                if (ytId) playYoutube(ytId);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    updateDisplay();
+                    if (timeLeft <= 0) finishTimer();
+                }, 1000);
+                btn.innerText = "暫停";
+                btn.style.background = "var(--btn-stop)";
+            }
+            isRunning = !isRunning;
+        }
+
+        function finishTimer() {
+            clearInterval(timer);
+            isRunning = false;
+            
+            // 1. 停止 YouTube
+            if (player) player.stopVideo();
+            
+            // 2. 設定並播放循環鬧鈴
+            alarm.loop = true;
+            alarm.play().catch(e => console.log("音效播放被瀏覽器攔截，請確保曾點擊過頁面。"));
+            
+            const btn = document.getElementById('startBtn');
+            btn.innerText = "開始計時";
+            btn.style.background = "var(--btn-start)";
+            
+            // 3. 延遲彈出 alert，確保聲音已啟動
+            setTimeout(() => {
+                alert("⏰ 時間到！");
+                stopAlarm(); 
+                resetTimer();
+            }, 150);
+        }
+
+        function resetTimer() {
+            clearInterval(timer);
+            isRunning = false;
+            stopAlarm();
+            if (player) player.stopVideo();
+            timeLeft = initialTime; 
+            updateDisplay();
+            const btn = document.getElementById('startBtn');
+            btn.innerText = "開始計時";
+            btn.style.background = "var(--btn-start)";
+        }
+
+        function stopAlarm() {
+            alarm.pause();
+            alarm.currentTime = 0;
+        }
+
+        function playYoutube(id) {
+            if (player && player.loadVideoById) {
+                player.loadVideoById(id);
+                player.playVideo();
+            } else {
+                player = new YT.Player('youtube-player', {
+                    height: '0', width: '0', videoId: id,
+                    playerVars: { 'autoplay': 1, 'controls': 0 },
+                    events: { 'onReady': (e) => e.target.playVideo() }
+                });
+            }
+        }
+
+        document.body.ondblclick = (e) => {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                else document.exitFullscreen();
+            }
+        };
+    </script>
+</body>
+</html>
