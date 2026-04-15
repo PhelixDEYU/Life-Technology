@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Countdown Timer - Repeat Alarm</title>
+    <title>Countdown Timer - Custom URL & Resume</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -92,12 +92,25 @@
         .music-panel {
             background: rgba(255,255,255,0.05);
             padding: 15px 30px; border-radius: 15px;
-            display: flex; align-items: center; gap: 15px;
+            display: flex; align-items: center; gap: 15px; flex-wrap: wrap; justify-content: center;
             border: 1px solid rgba(255,255,255,0.1);
         }
-        .music-panel input {
+        
+        .music-panel input[type="text"] {
             background: #1e293b; border: 1px solid #334155; color: #fff;
-            padding: 12px; border-radius: 8px; width: 250px; font-size: 1rem;
+            padding: 12px; border-radius: 8px; font-size: 1rem;
+            outline: none; width: 350px;
+        }
+        .music-panel input[type="text"]:focus {
+            border-color: #64748b;
+        }
+
+        .mute-label {
+            display: flex; align-items: center; gap: 8px; cursor: pointer;
+            font-size: 1.1rem; user-select: none;
+        }
+        .mute-label input[type="checkbox"] {
+            width: 18px; height: 18px; cursor: pointer;
         }
 
         .hint { margin-top: 25px; color: #475569; font-size: 0.9rem; }
@@ -127,8 +140,11 @@
         </div>
 
         <div class="music-panel">
-            <span style="font-size: 1.1rem;">🎵 背景音樂 YouTube ID:</span>
-            <input type="text" id="yt-id" placeholder="例如：dQw4w9WgXcQ">
+            <span style="font-size: 1.1rem;">🎵 背景音樂:</span>
+            <input type="text" id="yt-input" placeholder="請貼上 YouTube 網址或 ID" value="https://youtu.be/jfKfPfyJRdk">
+            <label class="mute-label">
+                <input type="checkbox" id="mute-checkbox" onchange="toggleMute()"> 靜音
+            </label>
         </div>
         
         <div class="hint">點擊數字直接輸入 | 雙擊背景進入全螢幕</div>
@@ -146,8 +162,10 @@
         let timer = null;
         let isRunning = false;
         let player;
+        let currentYtId = ''; // 用來記錄當前播放的影片ID，以判斷是否需要重新載入
         const alarm = document.getElementById('alarm-sound');
 
+        // 載入 YouTube API
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -188,18 +206,71 @@
 
         function keyEv(e, type) { if (e.key === 'Enter') endEdit(type); }
 
+        // 解析任何形式的 YouTube 網址，萃取 11 碼 ID
+        function extractVideoID(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            if (match && match[2].length === 11) {
+                return match[2];
+            } else if (url.length === 11) { // 如果使用者直接輸入 11 碼 ID
+                return url;
+            }
+            return null;
+        }
+
+        // 切換靜音狀態
+        function toggleMute() {
+            if (player && typeof player.mute === 'function') {
+                const isMuted = document.getElementById('mute-checkbox').checked;
+                if (isMuted) {
+                    player.mute();
+                } else {
+                    player.unMute();
+                }
+            }
+        }
+
         function toggleTimer() {
             const btn = document.getElementById('startBtn');
             stopAlarm(); 
+            
             if (isRunning) {
+                // 暫停計時
                 clearInterval(timer);
-                if (player) player.pauseVideo();
+                if (player && typeof player.pauseVideo === 'function') {
+                    player.pauseVideo(); // 暫停 YouTube
+                }
                 btn.innerText = "繼續計時";
                 btn.style.background = "var(--btn-start)";
             } else {
+                // 開始或繼續計時
                 if (timeLeft <= 0) return;
-                const ytId = document.getElementById('yt-id').value.trim();
-                if (ytId) playYoutube(ytId);
+                
+                const rawInput = document.getElementById('yt-input').value.trim();
+                let ytId = '';
+                
+                if (rawInput) {
+                    ytId = extractVideoID(rawInput);
+                    if (!ytId) {
+                        alert("無法解析這段 YouTube 網址，請確認格式是否正確！");
+                        return; // 網址錯誤則不啟動計時
+                    }
+                }
+
+                // 處理音樂播放與接續邏輯
+                if (ytId) {
+                    if (ytId !== currentYtId) {
+                        // 如果網址換了，就載入新影片
+                        currentYtId = ytId;
+                        playYoutube(ytId);
+                    } else {
+                        // 如果網址沒換，就直接繼續播放 (從剛剛暫停的地方開始)
+                        if (player && typeof player.playVideo === 'function') {
+                            player.playVideo();
+                        }
+                    }
+                }
+
                 timer = setInterval(() => {
                     timeLeft--;
                     updateDisplay();
@@ -215,10 +286,12 @@
             clearInterval(timer);
             isRunning = false;
             
-            // 1. 停止 YouTube
-            if (player) player.stopVideo();
+            // 時間到停止影片，並清空當前 ID，這樣下次開始才會從頭播
+            if (player && typeof player.stopVideo === 'function') {
+                player.stopVideo();
+            }
+            currentYtId = ''; 
             
-            // 2. 設定並播放循環鬧鈴
             alarm.loop = true;
             alarm.play().catch(e => console.log("音效播放被瀏覽器攔截，請確保曾點擊過頁面。"));
             
@@ -226,7 +299,6 @@
             btn.innerText = "開始計時";
             btn.style.background = "var(--btn-start)";
             
-            // 3. 延遲彈出 alert，確保聲音已啟動
             setTimeout(() => {
                 alert("⏰ 時間到！");
                 stopAlarm(); 
@@ -238,7 +310,13 @@
             clearInterval(timer);
             isRunning = false;
             stopAlarm();
-            if (player) player.stopVideo();
+            
+            // 重設時停止影片並清空記憶的 ID
+            if (player && typeof player.stopVideo === 'function') {
+                player.stopVideo();
+            }
+            currentYtId = '';
+            
             timeLeft = initialTime; 
             updateDisplay();
             const btn = document.getElementById('startBtn');
@@ -252,20 +330,30 @@
         }
 
         function playYoutube(id) {
-            if (player && player.loadVideoById) {
+            const isMuted = document.getElementById('mute-checkbox').checked;
+            
+            if (player && typeof player.loadVideoById === 'function') {
                 player.loadVideoById(id);
+                if (isMuted) player.mute(); else player.unMute();
                 player.playVideo();
             } else {
                 player = new YT.Player('youtube-player', {
                     height: '0', width: '0', videoId: id,
                     playerVars: { 'autoplay': 1, 'controls': 0 },
-                    events: { 'onReady': (e) => e.target.playVideo() }
+                    events: { 
+                        'onReady': (e) => {
+                            if (isMuted) e.target.mute(); else e.target.unMute();
+                            e.target.playVideo();
+                        }
+                    }
                 });
             }
         }
 
+        // 防止點擊輸入框或打勾選單時觸發全螢幕
         document.body.ondblclick = (e) => {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+            const ignoreTags = ['INPUT', 'BUTTON', 'LABEL'];
+            if (!ignoreTags.includes(e.target.tagName)) {
                 if (!document.fullscreenElement) document.documentElement.requestFullscreen();
                 else document.exitFullscreen();
             }
