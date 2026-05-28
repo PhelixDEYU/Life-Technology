@@ -293,6 +293,7 @@
                     </div>
                     
                     <div class="flex gap-2">
+                        <button @click="resetCurrentSession" class="flex items-center bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded shadow transition font-bold text-sm border border-gray-600" title="清除目前的點名紀錄，將狀態恢復為空白"><i class="fa-solid fa-rotate-left mr-2"></i> 狀態還原</button>
                         <button @click="saveCurrentSession" class="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition font-bold text-sm border border-blue-700" title="點選此按鈕後，會將所有空白的狀態轉為出席"><i class="fa-solid fa-floppy-disk mr-2"></i> 儲存確認</button>
                     </div>
                 </div>
@@ -839,6 +840,18 @@
                     }
                 };
 
+                const resetCurrentSession = () => {
+                    if(!currentSession.value) return;
+                    if(confirm("確定要重置本堂課的點名狀態嗎？這會將所有學生的出席狀態恢復為空白。")) {
+                        currentSession.value.records.forEach(s => {
+                            s.status = '';
+                            s.statusNote = '';
+                        });
+                        currentSession.value.isRollCallDone = false;
+                        sessions.value = [...sessions.value];
+                    }
+                };
+
                 const setStudentStatus = (student, newStatus) => {
                     if(student.status === newStatus) {
                          student.status = '';
@@ -1049,7 +1062,7 @@
                     allClasses, currentClassKey, currentTeacher, switchClass, fileInput, triggerFileUpload, handleFileUpload, exportToExcel, exportAllClasses,
                     deleteCurrentClass, studentList,
                     overviewModal, showOverviewModal, getWeekIndex, getRecord, getStatusLabel, calculateStudentTotal, jumpToDateFromOverview, isFutureOrToday,
-                    saveCurrentSession, shouldShowRecord, hasActivity,
+                    saveCurrentSession, resetCurrentSession, shouldShowRecord, hasActivity,
                     searchInput, toggleRapidMode, rapidModeStatus, handleRapidInput, filterStatus,
                     deleteOptionModal, handleDeleteOption, setStudentStatus, clearAllData,
                     statusOptions: [{val:'present',label:'出席',color:'bg-indigo-500'},{val:'late',label:'遲到',color:'bg-yellow-500'},{val:'absent',label:'缺席',color:'bg-red-500'},{val:'leave',label:'公假',color:'bg-blue-400'}]
