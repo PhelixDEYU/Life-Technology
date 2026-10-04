@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>立體投影與雙格紙繪圖 (方塊粗框版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', '微軟正黑體', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a; /* Slate 900 */
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .cursor-edit { cursor: crosshair !important; }
+        .cursor-rotate { cursor: grab !important; }
+        .cursor-rotate:active { cursor: grabbing !important; }
+        .cursor-pen { cursor: crosshair !important; }
+
+        .btn-transition { transition: all 0.2s ease; }
+        .btn-transition:active { transform: scale(0.95); }
+        
+        .mode-active { background-color: #3b82f6 !important; color: white !important; border-color: transparent !important; }
+        .mode-inactive { background-color: #1e293b !important; color: #94a3b8 !important; border-color: #334155 !important; }
+        .mode-inactive:hover { background-color: #334155 !important; }
+
+        .tool-active { background-color: #e2e8f0; border-color: #94a3b8; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row w-screen h-screen">
+
+    <!-- 左側：3D 立體積木區域 -->
+    <div class="w-full lg:w-1/2 h-[45%] lg:h-full relative flex-shrink-0 border-b lg:border-b-0 lg:border-r border-slate-700 bg-slate-800">
+        <!-- 3D 浮動工具列 -->
+        <div class="absolute top-0 left-0 w-full z-10 p-2 lg:p-4 pointer-events-none flex flex-col gap-2">
+            <div class="flex flex-wrap justify-between items-start gap-2">
+                <div class="bg-slate-900/90 backdrop-blur p-2 rounded-xl border border-slate-700 pointer-events-auto shadow-lg flex gap-1">
+                    <button id="mode-edit" class="btn-transition px-3 py-1.5 rounded-lg text-sm font-bold border mode-active">🛠️ 編輯</button>
+                    <button id="mode-rotate" class="btn-transition px-3 py-1.5 rounded-lg text-sm font-bold border mode-inactive">🔄 自由旋轉</button>
+                </div>
+                
+                <div class="bg-slate-900/90 backdrop-blur p-2 rounded-xl border border-slate-700 pointer-events-auto shadow-lg grid grid-cols-3 gap-1.5">
+                    <button id="btn-top" class="btn-transition bg-blue-500 hover:bg-blue-400 text-white font-bold text-xs py-1.5 px-2 rounded col-span-1 border-b-4 border-blue-700">上視圖 (藍)</button>
+                    <button id="btn-front" class="btn-transition bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs py-1.5 px-2 rounded col-span-1 border-b-4 border-rose-700">前視圖 (紅)</button>
+                    <button id="btn-right" class="btn-transition bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold text-xs py-1.5 px-2 rounded col-span-1 border-b-4 border-yellow-600">右視圖 (黃)</button>
+                    <button id="btn-iso" class="btn-transition bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-1.5 px-2 rounded col-span-1">等角圖</button>
+                    <button id="btn-oblique" class="btn-transition bg-purple-600 hover:bg-purple-500 text-white text-xs py-1.5 px-2 rounded col-span-2">等斜圖 (Oblique)</button>
+                </div>
+            </div>
+            <div id="instruction-edit" class="bg-indigo-900/90 backdrop-blur p-2.5 rounded-lg border border-indigo-500/50 pointer-events-auto shadow-lg max-w-[200px] text-xs text-indigo-100">
+                <div class="mb-1.5 flex items-center gap-1"><span class="text-indigo-400 text-sm">➕</span> <strong>左鍵</strong>：新增</div>
+                <div class="mb-2 flex items-center gap-1"><span class="text-pink-400 text-sm">➖</span> <strong>右鍵/Shift</strong>：移除</div>
+                <button id="btn-clear-blocks" class="w-full bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white py-1.5 rounded transition-colors font-bold">🗑️️ 清空立體圖</button>
+            </div>
+        </div>
+        <div id="three-container" class="w-full h-full cursor-edit relative z-0"></div>
+    </div>
+
+    <!-- 右側：2D 繪圖板區域 -->
+    <div class="w-full lg:w-1/2 h-[55%] lg:h-full flex flex-col bg-white relative z-10">
+        <div class="bg-slate-100 border-b border-slate-300 p-2 lg:p-3 flex flex-wrap justify-between items-center shadow-sm z-20 gap-2 overflow-x-auto">
+            <div class="flex items-center gap-1.5">
+                <button id="tool-pen" class="btn-transition p-2 rounded-lg border tool-active text-slate-800 text-sm flex items-center" title="畫筆">
+                    ✏️ <span class="hidden sm:inline ml-1 font-semibold">畫筆</span>
+                </button>
+                <button id="tool-eraser" class="btn-transition p-2 rounded-lg border border-transparent hover:bg-slate-200 text-slate-800 text-sm flex items-center" title="橡皮擦">
+                    🧼 <span class="hidden sm:inline ml-1 font-semibold">橡皮擦</span>
+                </button>
+                <button id="tool-dashed" class="btn-transition p-2 rounded-lg border border-transparent hover:bg-slate-200 text-slate-800 text-sm flex items-center" title="虛線筆(隱藏線)">
+                    〰️ <span class="hidden sm:inline ml-1 font-semibold">虛線</span>
+                </button>
+                <button id="tool-fill" class="btn-transition p-2 rounded-lg border border-transparent hover:bg-slate-200 text-slate-800 text-sm flex items-center" title="塗格子(用於三視圖轉立體)">
+                    🔲 <span class="hidden sm:inline ml-1 font-semibold">塗格子</span>
+                </button>
+                <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                <input type="color" id="color-picker" value="#0f172a" class="w-8 h-8 rounded cursor-pointer border-0 p-0" title="顏色">
+                
+                <div class="flex gap-1 ml-1 items-center">
+                    <button class="quick-color w-5 h-5 rounded bg-[#f43f5e] border border-slate-300 hover:scale-110 transition-transform cursor-pointer" data-color="#f43f5e" title="前視圖(紅)"></button>
+                    <button class="quick-color w-5 h-5 rounded bg-[#3b82f6] border border-slate-300 hover:scale-110 transition-transform cursor-pointer" data-color="#3b82f6" title="上視圖(藍)"></button>
+                    <button class="quick-color w-5 h-5 rounded bg-[#facc15] border border-slate-300 hover:scale-110 transition-transform cursor-pointer" data-color="#facc15" title="右視圖(黃)"></button>
+                </div>
+                <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                <input type="color" id="color-picker" value="#0f172a" class="w-8 h-8 rounded cursor-pointer border-0 p-0" title="顏色">
+                <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                
+                <select id="grid-type-select" class="bg-white border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 font-bold cursor-pointer outline-none shadow-sm">
+                    <option value="square">方格紙 (Square)</option>
+                    <option value="isometric">三角格紙 (Isometric)</option>
+                </select>
+
+                <label class="flex items-center gap-1.5 cursor-pointer bg-blue-100 px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-200 transition-colors ml-1 shadow-sm">
+                    <input type="checkbox" id="snap-toggle" checked class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer">
+                    <span class="text-sm font-bold text-blue-900 whitespace-nowrap">貼齊格線</span>
+                </label>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-generate-views" class="btn-transition bg-indigo-500 hover:bg-indigo-400 text-white px-3 py-2 rounded-lg text-sm font-bold border border-indigo-600 flex-shrink-0 shadow-sm">
+                    📐 生成三視圖
+                </button>
+                <button id="btn-convert-3d" class="btn-transition bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-2 rounded-lg text-sm font-bold border border-emerald-600 flex-shrink-0 shadow-sm">
+                    ✨ 三視圖轉立體
+                </button>
+                <button id="btn-clear-drawing" class="btn-transition text-red-600 hover:bg-red-50 bg-white px-3 py-2 rounded-lg text-sm font-bold border border-red-200 flex-shrink-0 shadow-sm">
+                    🗑️️ 清除畫板
+                </button>
+            </div>
+        </div>
+
+        <div id="drawing-area" class="relative flex-grow w-full h-full bg-white overflow-hidden cursor-pen touch-none">
+            <canvas id="bg-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+            <canvas id="main-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+            <canvas id="preview-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+        </div>
+    </div>
+
+    <!-- 訊息提示框 -->
+    <div id="toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl transition-all duration-300 z-50 font-bold bg-red-600 text-white translate-y-20 opacity-0 pointer-events-none"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        const threeContainer = document.getElementById('three-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1e293b);
+
+        const voxelGroup = new THREE.Group();
+        scene.add(voxelGroup);
+
+        const frustumSize = 25; 
+        let aspect = threeContainer.clientWidth / threeContainer.clientHeight;
+        const camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2, frustumSize * aspect / 2,
+            frustumSize / 2, frustumSize / -2,
+            1, 2000
+        );
+        const defaultCameraPos = new THREE.Vector3(50, 50, 50);
+        camera.position.copy(defaultCameraPos);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+        threeContainer.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.enabled = false;
+
+        const gridSize = 20;
+
+        // 1. 地板格線 (XZ平面)
+        const gridFloor = new THREE.GridHelper(gridSize, gridSize, 0x4b5563, 0x374151);
+        gridFloor.position.y = 0.01; 
+        voxelGroup.add(gridFloor);
+
+        // 2. 後方格線 (XY平面) - 僅前視圖顯示，推到 Z = -10
+        const gridBack = new THREE.GridHelper(gridSize, gridSize, 0x4b5563, 0x374151);
+        gridBack.rotation.x = Math.PI / 2;
+        gridBack.position.set(0, 10, -10); // Center at Y=10
+        gridBack.visible = false;
+        voxelGroup.add(gridBack);
+
+        // 3. 側邊格線 (YZ平面) - 僅右視圖顯示，推到 X = -10
+        const gridSide = new THREE.GridHelper(gridSize, gridSize, 0x4b5563, 0x374151);
+        gridSide.rotation.z = Math.PI / 2;
+        gridSide.position.set(-10, 10, 0);
+        gridSide.visible = false;
+        voxelGroup.add(gridSide);
+
+        function updateGrids(viewKey) {
+            gridFloor.visible = false;
+            gridBack.visible = false;
+            gridSide.visible = false;
+
+            if (viewKey === 'front') {
+                gridBack.visible = true;
+            } else if (viewKey === 'right') {
+                gridSide.visible = true;
+            } else if (viewKey === 'top') {
+                gridFloor.visible = true;
+                gridFloor.position.y = -10; 
+            } else {
+                gridFloor.visible = true;
+                gridFloor.position.y = 0.01; 
+            }
+        }
+
+        const raycastObjects = []; 
+        const voxels = []; 
+
+        const planeGeo = new THREE.PlaneGeometry(gridSize, gridSize);
+        planeGeo.rotateX(-Math.PI / 2);
+        const plane = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ visible: false }));
+        voxelGroup.add(plane);
+        raycastObjects.push(plane);
+
+        const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+        
+        // 建立實體粗線條外框 (利用圓柱體解決瀏覽器不支援 Line 粗細的問題)
+        function buildThickEdges(geometry, colorHex, thickness) {
+            const edgeGroup = new THREE.Group();
+            const edgesGeo = new THREE.EdgesGeometry(geometry);
+            const pos = edgesGeo.attributes.position.array;
+            const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+            
+            const _vec1 = new THREE.Vector3();
+            const _vec2 = new THREE.Vector3();
+            const _up = new THREE.Vector3(0, 1, 0);
+
+            for (let i = 0; i < pos.length; i += 6) {
+                _vec1.set(pos[i], pos[i+1], pos[i+2]);
+                _vec2.set(pos[i+3], pos[i+4], pos[i+5]);
+                
+                const dist = _vec1.distanceTo(_vec2);
+                const cylGeo = new THREE.CylinderGeometry(thickness, thickness, dist, 8);
+                const cyl = new THREE.Mesh(cylGeo, mat);
+                
+                cyl.position.copy(_vec1).lerp(_vec2, 0.5);
+                cyl.quaternion.setFromUnitVectors(_up, _vec2.clone().sub(_vec1).normalize());
+                edgeGroup.add(cyl);
+            }
+            return edgeGroup;
+        }
+        
+        const standardThickEdges = buildThickEdges(cubeGeo, 0x0f172a, 0.04); // 深色粗框
+
+        const faceMaterials = [
+            new THREE.MeshBasicMaterial({ color: 0xfacc15 }), // Right(+x) -> Yellow
+            new THREE.MeshBasicMaterial({ color: 0xcbd5e1 }), // Left(-x) -> Gray
+            new THREE.MeshBasicMaterial({ color: 0x3b82f6 }), // Top(+y) -> Blue
+            new THREE.MeshBasicMaterial({ color: 0xcbd5e1 }), // Bottom(-y) -> Gray
+            new THREE.MeshBasicMaterial({ color: 0xf43f5e }), // Front(+z) -> Red
+            new THREE.MeshBasicMaterial({ color: 0xcbd5e1 })  // Back(-z) -> Gray
+        ];
+
+        const rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
+        const rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.4, transparent: true, depthTest: false });
+        const rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
+        rollOverMesh.add(buildThickEdges(rollOverGeo, 0xffffff, 0.025));
+        voxelGroup.add(rollOverMesh);
+
+        // 等斜圖錯切矩陣
+        const obliqueAngle = Math.PI / 4;
+        const obliqueDepthScale = 0.5;
+        const shearX = -Math.cos(obliqueAngle) * obliqueDepthScale;
+        const shearY = -Math.sin(obliqueAngle) * obliqueDepthScale;
+        const obliqueMatrix = new THREE.Matrix4().set(
+            1, 0, shearX, 0,
+            0, 1, shearY, 0,
+            0, 0, 1,      0,
+            0, 0, 0,      1
+        );
+
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let currentMode = 'EDIT';
+        let isAnimating = false;
+
+        function setMode(mode) {
+            currentMode = mode;
+            voxelGroup.matrix.identity();
+            voxelGroup.matrixAutoUpdate = true;
+            voxelGroup.updateMatrixWorld(true);
+            updateGrids('default'); 
+
+            if (mode === 'EDIT') {
+                document.getElementById('mode-edit').classList.replace('mode-inactive', 'mode-active');
+                document.getElementById('mode-rotate').classList.replace('mode-active', 'mode-inactive');
+                document.getElementById('instruction-edit').classList.remove('hidden');
+                threeContainer.className = 'w-full h-full cursor-edit relative z-0';
+                controls.enabled = false;
+            } else {
+                document.getElementById('mode-rotate').classList.replace('mode-inactive', 'mode-active');
+                document.getElementById('mode-edit').classList.replace('mode-active', 'mode-inactive');
+                document.getElementById('instruction-edit').classList.add('hidden');
+                threeContainer.className = 'w-full h-full cursor-rotate relative z-0';
+                controls.enabled = true;
+                rollOverMesh.visible = false;
+            }
+        }
+
+        document.getElementById('mode-edit').addEventListener('click', () => setMode('EDIT'));
+        document.getElementById('mode-rotate').addEventListener('click', () => setMode('ROTATE'));
+
+        function getThreePointer(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            let clientX = event.clientX;
+            let clientY = event.clientY;
+            
+            // 安全地擷取觸控座標
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else if (event.changedTouches && event.changedTouches.length > 0) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            }
+
+            // 確保座標存在後，改用安全的 .set() 方法更新指標
+            if (clientX !== undefined && clientY !== undefined && typeof pointer !== 'undefined') {
+                pointer.set(
+                    ((clientX - rect.left) / rect.width) * 2 - 1,
+                    -((clientY - rect.top) / rect.height) * 2 + 1
+                );
+            }
+        }
+
+        function onThreeMove(event) {
+            if (currentMode !== 'EDIT' || isAnimating) {
+                rollOverMesh.visible = false;
+                return;
+            }
+            getThreePointer(event);
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(raycastObjects, false);
+
+            if (intersects.length > 0) {
+                rollOverMesh.visible = true;
+                const placePos = intersects[0].point.clone().add(intersects[0].face.normal.clone().multiplyScalar(0.5));
+                rollOverMesh.position.copy(placePos).floor().addScalar(0.5);
+                if (rollOverMesh.position.y < 0.5) rollOverMesh.position.y = 0.5;
+            } else {
+                rollOverMesh.visible = false;
+            }
+        }
+
+        function onThreeDown(event) {
+            if (currentMode !== 'EDIT' || isAnimating) return;
+            getThreePointer(event);
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(raycastObjects, false);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                const isDelete = (event.button === 2) || event.shiftKey;
+
+                if (isDelete) {
+                    if (intersect.object !== plane) {
+                        voxelGroup.remove(intersect.object);
+                        raycastObjects.splice(raycastObjects.indexOf(intersect.object), 1);
+                        voxels.splice(voxels.indexOf(intersect.object), 1);
+                    }
+                } else {
+                    const voxel = new THREE.Mesh(cubeGeo, faceMaterials);
+                    const placePos = intersect.point.clone().add(intersect.face.normal.clone().multiplyScalar(0.5));
+                    voxel.position.copy(placePos).floor().addScalar(0.5);
+                    if (voxel.position.y < 0.5) voxel.position.y = 0.5;
+                    
+                    voxel.add(standardThickEdges.clone());
+                    voxelGroup.add(voxel);
+                    raycastObjects.push(voxel);
+                    voxels.push(voxel);
+                }
+            }
+        }
+
+        threeContainer.addEventListener('pointermove', onThreeMove);
+        threeContainer.addEventListener('pointerdown', onThreeDown);
+        document.getElementById('btn-clear-blocks').addEventListener('click', () => {
+            for (let i = voxels.length - 1; i >= 0; i--) {
+                voxelGroup.remove(voxels[i]);
+                raycastObjects.splice(raycastObjects.indexOf(voxels[i]), 1);
+            }
+            voxels.length = 0;
+        });
+
+        const views = {
+            'front': { pos: new THREE.Vector3(0, 0, 60) },
+            'top': { pos: new THREE.Vector3(0, 60, 0) },
+            'right': { pos: new THREE.Vector3(60, 0, 0) },
+            'iso': { pos: defaultCameraPos },
+            'oblique': { pos: new THREE.Vector3(0, 0, 60) } 
+        };
+
+        function animateCameraTo(viewKey) {
+            if (isAnimating) return;
+            isAnimating = true;
+            rollOverMesh.visible = false;
+            controls.enabled = false;
+
+            const targetPos = views[viewKey].pos;
+            updateGrids(viewKey);
+            
+            if (viewKey === 'oblique') {
+                voxelGroup.matrixAutoUpdate = false;
+                voxelGroup.matrix.copy(obliqueMatrix);
+                voxelGroup.updateMatrixWorld(true);
+                document.getElementById('mode-edit').classList.replace('mode-active', 'mode-inactive');
+                document.getElementById('mode-rotate').classList.replace('mode-active', 'mode-inactive');
+                threeContainer.className = 'w-full h-full cursor-rotate relative z-0';
+            } else {
+                voxelGroup.matrix.identity();
+                voxelGroup.matrixAutoUpdate = true;
+                voxelGroup.updateMatrixWorld(true);
+            }
+
+            const startPos = camera.position.clone();
+            const startQuat = camera.quaternion.clone();
+            
+            const dummyCamera = camera.clone();
+            dummyCamera.position.copy(targetPos);
+            dummyCamera.up.set(0, viewKey === 'top' ? 0 : 1, viewKey === 'top' ? -1 : 0);
+            dummyCamera.lookAt(0, 0, 0);
+            const targetQuat = dummyCamera.quaternion.clone();
+
+            const startTime = performance.now();
+            function animateFrame(time) {
+                let progress = (time - startTime) / 600;
+                if (progress > 1) progress = 1;
+                const ease = 1 - Math.pow(1 - progress, 3);
+
+                camera.position.lerpVectors(startPos, targetPos, ease);
+                camera.quaternion.slerpQuaternions(startQuat, targetQuat, ease);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateFrame);
+                } else {
+                    isAnimating = false;
+                    camera.up.copy(dummyCamera.up);
+                    camera.lookAt(0, 0, 0);
+                    controls.target.set(0, 0, 0);
+                    if (viewKey !== 'oblique') {
+                        if (currentMode === 'ROTATE') {
+                            controls.enabled = true;
+                            threeContainer.className = 'w-full h-full cursor-rotate relative z-0';
+                        } else {
+                            controls.enabled = false;
+                            threeContainer.className = 'w-full h-full cursor-edit relative z-0';
+                        }
+                    }
+                }
+            }
+            requestAnimationFrame(animateFrame);
+        }
+
+        ['front', 'top', 'right', 'iso', 'oblique'].forEach(k => {
+            document.getElementById(`btn-${k}`).addEventListener('click', () => animateCameraTo(k));
+        });
+
+        controls.addEventListener('start', () => {
+            voxelGroup.matrix.identity();
+            voxelGroup.matrixAutoUpdate = true;
+            voxelGroup.updateMatrixWorld(true);
+            updateGrids('default');
+        });
+
+        const bCanvas = document.getElementById('bg-canvas');
+        const bCtx = bCanvas.getContext('2d');
+        const mCanvas = document.getElementById('main-canvas');
+        const mCtx = mCanvas.getContext('2d');
+        const pCanvas = document.getElementById('preview-canvas');
+        const pCtx = pCanvas.getContext('2d');
+        const drawingArea = document.getElementById('drawing-area');
+        
+        const DRAW_GRID_SIZE = 30; 
+        let dpr = window.devicePixelRatio || 1;
+
+        let isDrawing = false;
+        let currentTool = 'pen';
+        let currentGridType = 'square';
+        let startPos = { x: 0, y: 0 };
+        let currentPos = { x: 0, y: 0 };
+        
+        const toolPen = document.getElementById('tool-pen');
+        const toolEraser = document.getElementById('tool-eraser');
+        const toolDashed = document.getElementById('tool-dashed');
+        const toolFill = document.getElementById('tool-fill');
+        const colorPicker = document.getElementById('color-picker');
+        const snapToggle = document.getElementById('snap-toggle');
+        const gridTypeSelect = document.getElementById('grid-type-select');
+
+        function resizeCanvases() {
+            const temp = document.createElement('canvas');
+            temp.width = mCanvas.width; temp.height = mCanvas.height;
+            if(mCanvas.width > 0) temp.getContext('2d').drawImage(mCanvas, 0, 0);
+
+            const rect = drawingArea.getBoundingClientRect();
+            dpr = window.devicePixelRatio || 1;
+            
+            [bCanvas, mCanvas, pCanvas].forEach(c => {
+                c.width = rect.width * dpr;
+                c.height = rect.height * dpr;
+            });
+
+            bCtx.scale(dpr, dpr);
+            mCtx.scale(dpr, dpr);
+            pCtx.scale(dpr, dpr);
+            
+            if(temp.width > 0) mCtx.drawImage(temp, 0, 0, temp.width / dpr, temp.height / dpr);
+            
+            applyContextStyles(mCtx);
+            applyContextStyles(pCtx);
+            drawBackgroundGrid();
+        }
+
+        function applyContextStyles(ctx) {
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            if (currentTool === 'pen' || currentTool === 'dashed' || currentTool === 'fill') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = colorPicker.value;
+                ctx.lineWidth = 3;
+                if (currentTool === 'dashed') {
+                    ctx.setLineDash([8, 8]); // 啟用虛線
+                } else {
+                    ctx.setLineDash([]);
+                }
+            } else {
+                ctx.globalCompositeOperation = ctx === mCtx ? 'destination-out' : 'source-over';
+                ctx.strokeStyle = ctx === mCtx ? 'rgba(0,0,0,1)' : 'rgba(239,68,68,0.3)'; 
+                ctx.lineWidth = 15; 
+                ctx.setLineDash([]);
+            }
+        }
+
+        // 繪製強化的 2D 粗細格線
+        function drawBackgroundGrid() {
+            const w = bCanvas.width / dpr;
+            const h = bCanvas.height / dpr;
+            bCtx.clearRect(0, 0, w, h);
+
+            // 畫布統一使用細線
+            bCtx.lineWidth = 1.2;
+            bCtx.strokeStyle = '#cbd5e1'; 
+
+            if (currentGridType === 'square') {
+                for (let x = 0; x <= w; x += DRAW_GRID_SIZE) {
+                    bCtx.beginPath(); bCtx.moveTo(x, 0); bCtx.lineTo(x, h); bCtx.stroke();
+                }
+                for (let y = 0; y <= h; y += DRAW_GRID_SIZE) {
+                    bCtx.beginPath(); bCtx.moveTo(0, y); bCtx.lineTo(w, y); bCtx.stroke();
+                }
+            } else if (currentGridType === 'isometric') {
+                const dy = DRAW_GRID_SIZE;
+                const dx = DRAW_GRID_SIZE * Math.sqrt(3) / 2;
+                const slope = 1 / Math.sqrt(3);
+
+                // 垂直線
+                for (let x = 0; x <= w; x += dx) {
+                    bCtx.beginPath(); bCtx.moveTo(x, 0); bCtx.lineTo(x, h); bCtx.stroke();
+                }
+                
+                // 30度與150度斜線
+                const maxC = h + w * slope;
+                const minC = -w * slope;
+                
+                for (let c = Math.floor(minC/dy)*dy; c <= maxC; c += dy) {
+                    bCtx.beginPath(); bCtx.moveTo(0, c); bCtx.lineTo(w, slope * w + c); bCtx.stroke();
+                    bCtx.beginPath(); bCtx.moveTo(0, c); bCtx.lineTo(w, -slope * w + c); bCtx.stroke();
+                }
+            }
+        }
+
+        gridTypeSelect.addEventListener('change', (e) => {
+            currentGridType = e.target.value;
+            drawBackgroundGrid();
+        });
+
+        toolPen.addEventListener('click', () => {
+            currentTool = 'pen';
+            toolPen.classList.replace('border-transparent', 'tool-active');
+            toolEraser.classList.replace('tool-active', 'border-transparent');
+            toolDashed.classList.replace('tool-active', 'border-transparent');
+            toolFill.classList.replace('tool-active', 'border-transparent');
+            applyContextStyles(mCtx);
+            applyContextStyles(pCtx);
+        });
+
+        toolEraser.addEventListener('click', () => {
+            currentTool = 'eraser';
+            toolEraser.classList.replace('border-transparent', 'tool-active');
+            toolPen.classList.replace('tool-active', 'border-transparent');
+            toolDashed.classList.replace('tool-active', 'border-transparent');
+            toolFill.classList.replace('tool-active', 'border-transparent');
+            applyContextStyles(mCtx);
+            applyContextStyles(pCtx);
+        });
+
+        toolDashed.addEventListener('click', () => {
+            currentTool = 'dashed';
+            toolDashed.classList.replace('border-transparent', 'tool-active');
+            toolPen.classList.replace('tool-active', 'border-transparent');
+            toolEraser.classList.replace('tool-active', 'border-transparent');
+            toolFill.classList.replace('tool-active', 'border-transparent');
+            applyContextStyles(mCtx);
+            applyContextStyles(pCtx);
+        });
+
+        toolFill.addEventListener('click', () => {
+            currentTool = 'fill';
+            toolFill.classList.replace('border-transparent', 'tool-active');
+            toolPen.classList.replace('tool-active', 'border-transparent');
+            toolEraser.classList.replace('tool-active', 'border-transparent');
+            toolDashed.classList.replace('tool-active', 'border-transparent');
+            applyContextStyles(mCtx);
+            applyContextStyles(pCtx);
+        });
+
+        document.querySelectorAll('.quick-color').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                colorPicker.value = e.target.dataset.color;
+                if(currentTool === 'eraser') toolPen.click();
+                else { applyContextStyles(mCtx); applyContextStyles(pCtx); }
+            });
+        });
+
+        colorPicker.addEventListener('input', () => {
+            if(currentTool !== 'eraser') { mCtx.strokeStyle = colorPicker.value; pCtx.strokeStyle = colorPicker.value; }
+        });
+
+        toolEraser.addEventListener('click', () => {
+            currentTool = 'eraser';
+            toolEraser.classList.replace('border-transparent', 'tool-active');
+            toolPen.classList.replace('tool-active', 'border-transparent');
+            applyContextStyles(mCtx);
+            applyContextStyles(pCtx);
+        });
+
+        colorPicker.addEventListener('input', () => {
+            if(currentTool === 'pen') { mCtx.strokeStyle = colorPicker.value; pCtx.strokeStyle = colorPicker.value; }
+        });
+
+        document.getElementById('btn-clear-drawing').addEventListener('click', () => {
+            mCtx.clearRect(0, 0, mCanvas.width / dpr, mCanvas.height / dpr);
+            pCtx.clearRect(0, 0, pCanvas.width / dpr, pCanvas.height / dpr);
+        });
+
+        document.getElementById('btn-generate-views').addEventListener('click', () => {
+            if (voxels.length === 0) {
+                mCtx.clearRect(0, 0, mCanvas.width / dpr, mCanvas.height / dpr);
+                mCtx.fillStyle = '#94a3b8';
+                mCtx.font = 'bold 16px Inter';
+                mCtx.textAlign = 'center';
+                mCtx.fillText('請先在左側拼湊積木', mCanvas.width / dpr / 2, mCanvas.height / dpr / 2);
+                return;
+            }
+
+            // 強制切換為方格紙以正確顯示三視圖
+            if (currentGridType !== 'square') {
+                currentGridType = 'square';
+                gridTypeSelect.value = 'square';
+                drawBackgroundGrid();
+            }
+
+            let minX = Infinity, maxX = -Infinity;
+            let minY = Infinity, maxY = -Infinity;
+            let minZ = Infinity, maxZ = -Infinity;
+
+            const frontSet = new Set();
+            const topSet = new Set();
+            const rightSet = new Set();
+
+            voxels.forEach(v => {
+                const x = Math.floor(v.position.x);
+                const y = Math.floor(v.position.y);
+                const z = Math.floor(v.position.z);
+                
+                minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+
+                frontSet.add(`${x},${y}`);
+                topSet.add(`${x},${z}`);
+                rightSet.add(`${z},${y}`);
+            });
+
+            mCtx.clearRect(0, 0, mCanvas.width / dpr, mCanvas.height / dpr);
+            pCtx.clearRect(0, 0, pCanvas.width / dpr, pCanvas.height / dpr);
+
+            const wFront = maxX - minX + 1;
+            const hFront = maxY - minY + 1;
+            const hTop = maxZ - minZ + 1;
+            const wRight = maxZ - minZ + 1;
+
+            const gap = 2; // 視圖間距
+            const totalW = wFront + gap + wRight;
+            const totalH = hFront + gap + hTop;
+
+            const canvasW = mCanvas.width / dpr;
+            const canvasH = mCanvas.height / dpr;
+
+            // 確保圖形置中
+            let startX = (canvasW - (totalW * DRAW_GRID_SIZE)) / 2;
+            let startY = canvasH - (canvasH - (totalH * DRAW_GRID_SIZE)) / 2 - (hFront * DRAW_GRID_SIZE);
+            
+            // 對齊網格
+            startX = Math.round(startX / DRAW_GRID_SIZE) * DRAW_GRID_SIZE;
+            startY = Math.round(startY / DRAW_GRID_SIZE) * DRAW_GRID_SIZE;
+
+            const drawSquare = (gridX, gridY, fill) => {
+                const px = startX + gridX * DRAW_GRID_SIZE;
+                const py = startY - (gridY + 1) * DRAW_GRID_SIZE;
+                
+                mCtx.fillStyle = fill;
+                mCtx.fillRect(px, py, DRAW_GRID_SIZE, DRAW_GRID_SIZE);
+                mCtx.lineWidth = 2.5;
+                mCtx.strokeStyle = '#1e293b';
+                mCtx.strokeRect(px, py, DRAW_GRID_SIZE, DRAW_GRID_SIZE);
+            };
+
+            // 前視圖 (紅色)
+            frontSet.forEach(str => {
+                const [x, y] = str.split(',').map(Number);
+                drawSquare(x - minX, y - minY, '#f43f5e');
+            });
+
+            // 上視圖 (藍色)
+            topSet.forEach(str => {
+                const [x, z] = str.split(',').map(Number);
+                const gridY = hFront + gap + (maxZ - z); // 前方(maxZ)位在下方
+                drawSquare(x - minX, gridY, '#3b82f6');
+            });
+
+            // 右視圖 (黃色)
+            rightSet.forEach(str => {
+                const [z, y] = str.split(',').map(Number);
+                const gridX = wFront + gap + (maxZ - z); // 前方(maxZ)位在左側
+                drawSquare(gridX, y - minY, '#facc15');
+            });
+        });
+
+        // 解析 2D 畫布並生成 3D 立體圖
+        document.getElementById('btn-convert-3d').addEventListener('click', () => {
+            const w = mCanvas.width / dpr;
+            const h = mCanvas.height / dpr;
+            const imageData = mCtx.getImageData(0, 0, mCanvas.width, mCanvas.height).data;
+
+            const frontCells = [];
+            const topCells = [];
+            const rightCells = [];
+
+            const cols = Math.floor(w / DRAW_GRID_SIZE);
+            const rows = Math.floor(h / DRAW_GRID_SIZE);
+
+            // 掃描每個網格的中心點像素顏色
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cx = Math.floor((c + 0.5) * DRAW_GRID_SIZE * dpr);
+                    const cy = Math.floor((r + 0.5) * DRAW_GRID_SIZE * dpr);
+                    const idx = (cy * mCanvas.width + cx) * 4;
+                    const r_val = imageData[idx];
+                    const g_val = imageData[idx+1];
+                    const b_val = imageData[idx+2];
+                    const a_val = imageData[idx+3];
+
+                    if (a_val > 100) {
+                        if (r_val > 150 && g_val < 100 && b_val < 150) frontCells.push({c, r}); // 紅色
+                        else if (r_val < 100 && g_val < 150 && b_val > 150) topCells.push({c, r}); // 藍色
+                        else if (r_val > 150 && g_val > 150 && b_val < 100) rightCells.push({c, r}); // 黃色
+                    }
+                }
+            }
+
+            if (frontCells.length === 0 || topCells.length === 0 || rightCells.length === 0) {
+                showToast("轉換失敗：請確保在方格紙上，使用【塗格子】工具並以 紅色(前)、藍色(上)、黃色(右) 完整畫出三個視圖。");
+                return;
+            }
+
+            // 標準化座標系
+            const minX_F = Math.min(...frontCells.map(p => p.c));
+            const maxY_F = Math.max(...frontCells.map(p => p.r)); 
+            const F = {}; 
+            frontCells.forEach(p => {
+                const x = p.c - minX_F;
+                const y = maxY_F - p.r;
+                if(!F[x]) F[x] = {};
+                F[x][y] = true;
+            });
+
+            const minX_T = Math.min(...topCells.map(p => p.c));
+            const maxY_T = Math.max(...topCells.map(p => p.r));
+            const T = {}; 
+            topCells.forEach(p => {
+                const x = p.c - minX_T;
+                const z = maxY_T - p.r; 
+                if(!T[x]) T[x] = {};
+                T[x][z] = true;
+            });
+
+            const minZ_R = Math.min(...rightCells.map(p => p.c));
+            const maxY_R = Math.max(...rightCells.map(p => p.r));
+            const R = {}; 
+            rightCells.forEach(p => {
+                const z = p.c - minZ_R;
+                const y = maxY_R - p.r;
+                if(!R[z]) R[z] = {};
+                R[z][y] = true;
+            });
+
+            // 尋找邊界
+            const maxX = Math.max(...Object.keys(F).map(Number));
+            const maxY = Math.max(...Object.keys(F).flatMap(x => Object.keys(F[x])).map(Number));
+            const maxZ = Math.max(...Object.keys(T).flatMap(x => Object.keys(T[x])).map(Number));
+
+            // 清空目前的立體圖
+            for (let i = voxels.length - 1; i >= 0; i--) {
+                voxelGroup.remove(voxels[i]);
+                raycastObjects.splice(raycastObjects.indexOf(voxels[i]), 1);
+            }
+            voxels.length = 0;
+
+            let builtCount = 0;
+
+            // 利用 3 個方向的交集來推斷出最大容積 (Carving Method)
+            for (let x = 0; x <= maxX; x++) {
+                for (let y = 0; y <= maxY; y++) {
+                    for (let z = 0; z <= maxZ; z++) {
+                        if (F[x] && F[x][y] && T[x] && T[x][z] && R[z] && R[z][y]) {
+                            const voxel = new THREE.Mesh(cubeGeo, faceMaterials);
+                            voxel.position.set(x + 0.5, y + 0.5, maxZ - z + 0.5); 
+                            voxel.add(standardThickEdges.clone());
+                            voxelGroup.add(voxel);
+                            raycastObjects.push(voxel);
+                            voxels.push(voxel);
+                            builtCount++;
+                        }
+                    }
+                }
+            }
+            
+            if(builtCount > 0) {
+                showToast(`成功從三視圖生成了 ${builtCount} 個積木！`, true);
+                animateCameraTo('iso');
+            } else {
+                showToast("轉換失敗：這三個視圖在空間中沒有任何交集，請檢查對應位置是否畫錯。");
+            }
+        });
+
+        function showToast(msg, isSuccess = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = `fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl transition-all duration-300 z-50 font-bold ${isSuccess ? 'bg-emerald-600' : 'bg-red-600'} text-white`;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 4000);
+        }
+
+        function getCanvasPos(e) {
+            const rect = drawingArea.getBoundingClientRect();
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            
+            // 安全地擷取觸控座標
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            }
+            
+            return { 
+                x: (clientX || 0) - rect.left, 
+                y: (clientY || 0) - rect.top 
+            };
+        }
+
+        function getSnappedPos(x, y) {
+            if (currentGridType === 'square') {
+                return {
+                    x: Math.round(x / DRAW_GRID_SIZE) * DRAW_GRID_SIZE,
+                    y: Math.round(y / DRAW_GRID_SIZE) * DRAW_GRID_SIZE
+                };
+            } else {
+                const dy = DRAW_GRID_SIZE;
+                const dx = DRAW_GRID_SIZE * Math.sqrt(3) / 2;
+                let bestP = {x: 0, y: 0};
+                let minDist = Infinity;
+                
+                const baseCol = Math.round(x / dx);
+                for(let c = baseCol - 1; c <= baseCol + 1; c++) {
+                    let offset = (Math.abs(c) % 2 === 1) ? dy/2 : 0;
+                    let r = Math.round((y - offset) / dy);
+                    let px = c * dx;
+                    let py = r * dy + offset;
+                    
+                    let dist = (x - px)**2 + (y - py)**2;
+                    if(dist < minDist) {
+                        minDist = dist;
+                        bestP = {x: px, y: py};
+                    }
+                }
+                return bestP;
+            }
+        }
+
+        function fillGridCell(x, y) {
+            const col = Math.floor(x / DRAW_GRID_SIZE);
+            const row = Math.floor(y / DRAW_GRID_SIZE);
+            mCtx.fillStyle = colorPicker.value;
+            // 縮小 1px 填色，保留背景格線不被蓋住
+            mCtx.fillRect(col * DRAW_GRID_SIZE + 1, row * DRAW_GRID_SIZE + 1, DRAW_GRID_SIZE - 2, DRAW_GRID_SIZE - 2);
+        }
+
+        function handlePointerDown(e) {
+            if (e.button !== 0 && e.type !== 'touchstart') return;
+            isDrawing = true;
+            let pos = getCanvasPos(e);
+            
+            if (currentTool === 'fill') {
+                fillGridCell(pos.x, pos.y);
+                return;
+            }
+
+            if (snapToggle.checked) pos = getSnappedPos(pos.x, pos.y);
+            
+            startPos = { ...pos };
+            currentPos = { ...pos };
+
+            if (!snapToggle.checked) {
+                mCtx.beginPath();
+                mCtx.moveTo(startPos.x, startPos.y);
+                mCtx.lineTo(startPos.x, startPos.y);
+                mCtx.stroke();
+            }
+            e.preventDefault();
+        }
+
+        function handlePointerMove(e) {
+            if (!isDrawing) return;
+            let pos = getCanvasPos(e);
+
+            if (currentTool === 'fill') {
+                fillGridCell(pos.x, pos.y);
+                return;
+            }
+
+            if (snapToggle.checked) {
+                pos = getSnappedPos(pos.x, pos.y);
+                currentPos = { ...pos };
+                
+                pCtx.clearRect(0, 0, pCanvas.width / dpr, pCanvas.height / dpr);
+                pCtx.beginPath();
+                pCtx.moveTo(startPos.x, startPos.y);
+                pCtx.lineTo(currentPos.x, currentPos.y);
+                pCtx.stroke();
+            } else {
+                mCtx.lineTo(pos.x, pos.y);
+                mCtx.stroke();
+            }
+            e.preventDefault();
+        }
+
+        function handlePointerUp(e) {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (snapToggle.checked) {
+                pCtx.clearRect(0, 0, pCanvas.width / dpr, pCanvas.height / dpr);
+                mCtx.beginPath();
+                mCtx.moveTo(startPos.x, startPos.y);
+                mCtx.lineTo(currentPos.x, currentPos.y);
+                mCtx.stroke();
+            } else {
+                mCtx.closePath();
+            }
+        }
+
+        drawingArea.addEventListener('mousedown', handlePointerDown);
+        drawingArea.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+        drawingArea.addEventListener('touchstart', handlePointerDown, { passive: false });
+        drawingArea.addEventListener('touchmove', handlePointerMove, { passive: false });
+        window.addEventListener('touchend', handlePointerUp);
+
+        function onWindowResize() {
+            aspect = threeContainer.clientWidth / threeContainer.clientHeight;
+            camera.left = -frustumSize * aspect / 2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = -frustumSize / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+            resizeCanvases();
+        }
+        window.addEventListener('resize', onWindowResize);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isAnimating && controls.enabled) controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        onWindowResize();
+        animate();
+    </script>
+</body>
+</html>
