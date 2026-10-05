@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>立體投影與雙格紙繪圖 (方塊粗框版)</title>
+    <title>立體投影與雙格紙繪圖</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
@@ -915,12 +915,15 @@
                 return;
             }
 
-            if (snapToggle.checked) pos = getSnappedPos(pos.x, pos.y);
+            // 判斷是否需要貼齊格線（橡皮擦強制不貼齊）
+            const shouldSnap = snapToggle.checked && currentTool !== 'eraser';
+
+            if (shouldSnap) pos = getSnappedPos(pos.x, pos.y);
             
             startPos = { ...pos };
             currentPos = { ...pos };
 
-            if (!snapToggle.checked) {
+            if (!shouldSnap) {
                 mCtx.beginPath();
                 mCtx.moveTo(startPos.x, startPos.y);
                 mCtx.lineTo(startPos.x, startPos.y);
@@ -938,7 +941,10 @@
                 return;
             }
 
-            if (snapToggle.checked) {
+            // 判斷是否需要貼齊格線（橡皮擦強制不貼齊）
+            const shouldSnap = snapToggle.checked && currentTool !== 'eraser';
+
+            if (shouldSnap) {
                 pos = getSnappedPos(pos.x, pos.y);
                 currentPos = { ...pos };
                 
@@ -957,7 +963,11 @@
         function handlePointerUp(e) {
             if (!isDrawing) return;
             isDrawing = false;
-            if (snapToggle.checked) {
+            
+            // 判斷是否需要貼齊格線（橡皮擦強制不貼齊）
+            const shouldSnap = snapToggle.checked && currentTool !== 'eraser';
+            
+            if (shouldSnap) {
                 pCtx.clearRect(0, 0, pCanvas.width / dpr, pCanvas.height / dpr);
                 mCtx.beginPath();
                 mCtx.moveTo(startPos.x, startPos.y);
